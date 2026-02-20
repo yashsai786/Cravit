@@ -137,7 +137,7 @@ Built with a multi-role architecture, CRAVIT serves:
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-username/cravit.git
+git clone https://github.com/yashsai786/cravit.git
 cd cravit
 
 # Install dependencies
