@@ -5,7 +5,7 @@ export const RESTAURANTS = [
     rating: 4.2,
     cuisine: "South Indian",
     time: "30-35",
-    image: "invalid-url-path/sagar_ratna.jpg" // BUG: Broken path
+    image: "https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=500" // FIXED
   },
   {
     id: 'r2',
@@ -13,6 +13,6 @@ export const RESTAURANTS = [
     rating: 4.1,
     cuisine: "Burgers",
     time: "25-30",
-    image: "" // BUG: Missing image
+    image: "https://images.unsplash.com/photo-1571091718767-18b5b1457add?w=500" // FIXED
   }
 ];
