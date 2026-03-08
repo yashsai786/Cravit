@@ -1,50 +1,114 @@
-import React from 'react';
+import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
+import { Search, Filter, RotateCcw, Star, ChevronRight } from "lucide-react";
+import Header from "@/components/layout/Header";
+import { mockOrders } from "@/data/mockOrders";
+import { useCart } from "@/contexts/CartContext";
+import { toast } from "sonner";
+
+const statusColors: Record<string, string> = {
+  placed: "bg-info/10 text-info",
+  accepted: "bg-info/10 text-info",
+  preparing: "bg-warning/10 text-warning",
+  picked: "bg-primary/10 text-primary",
+  delivered: "bg-accent/10 text-accent",
+  cancelled: "bg-destructive/10 text-destructive",
+};
 
 const OrdersPage = () => {
-    const pastOrders = [
-        { id: 'ORD123', restaurant: 'Sagar Ratna', status: 'Delivered', date: 'Mar 02, 2026', total: 450, itemsCount: 3 },
-        { id: 'ORD456', restaurant: 'Burger King', status: 'Delivered', date: 'Feb 28, 2026', total: 299, itemsCount: 1 },
-        { id: 'ORD789', restaurant: 'La Pinoz', status: 'Cancelled', date: 'Feb 20, 2026', total: 600, itemsCount: 2 }
-    ];
+  const { addItem } = useCart();
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
-    return (
-        <div className="bg-gray-50 min-h-screen py-12 px-4">
-            <div className="container mx-auto max-w-4xl">
-                <h1 className="text-3xl font-black mb-10">Your Orders</h1>
-                <div className="space-y-6">
-                    {pastOrders.map(order => (
-                        <div key={order.id} className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                            <div className="flex gap-4 items-center">
-                                <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center text-2xl">
-                                    🍴
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-bold mb-1">{order.restaurant}</h3>
-                                    <p className="text-sm text-gray-400 font-medium">{order.date} • {order.id}</p>
-                                </div>
-                            </div>
+  const filtered = useMemo(() => {
+    let list = mockOrders;
+    if (statusFilter !== "all") list = list.filter((o) => o.orderStatus === statusFilter);
+    if (search) list = list.filter((o) => o.restaurantName.toLowerCase().includes(search.toLowerCase()) || o.id.toLowerCase().includes(search.toLowerCase()));
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [search, statusFilter]);
 
-                            <div className="flex items-center gap-10 w-full md:w-auto justify-between border-t md:border-0 pt-4 md:pt-0">
-                                <div className="text-center">
-                                    <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">Status</p>
-                                    <span className={`text-xs font-black px-3 py-1 rounded-full uppercase ${order.status === 'Delivered' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                                        {order.status}
-                                    </span>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">Amount</p>
-                                    <p className="font-bold text-lg text-gray-800">₹{order.total}</p>
-                                </div>
-                                <button className="px-6 py-3 bg-white border-2 border-orange-500 text-orange-500 font-black rounded-xl text-xs uppercase tracking-tighter hover:bg-orange-50 transition-colors whitespace-nowrap">
-                                    View Order
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
+  return (
+    <div className="min-h-screen bg-transparent">
+      <Header />
+      <main className="container max-w-2xl pb-20 px-4">
+        <h1 className="font-display font-bold text-xl text-foreground pt-6 pb-4">My Orders</h1>
+
+        {/* Search & Filter */}
+        <div className="flex gap-2 mb-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+              className="w-full h-9 pl-9 pr-3 rounded-xl bg-secondary text-sm text-foreground border-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+              placeholder="Search orders..." />
+          </div>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+            className="h-9 px-3 rounded-xl bg-secondary text-sm text-foreground border-none focus:outline-none">
+            <option value="all">All</option>
+            <option value="delivered">Delivered</option>
+            <option value="preparing">In Progress</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
         </div>
-    );
+
+        {/* Orders List */}
+        <div className="space-y-3">
+          {filtered.map((order) => (
+            <Link key={order.id} to={`/order/${order.id}`}
+              className="block p-4 rounded-xl bg-card shadow-card hover:shadow-card-hover transition-shadow animate-fade-in">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="font-display font-semibold text-foreground">{order.restaurantName}</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">{order.id} · {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>
+                </div>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${statusColors[order.orderStatus]}`}>
+                  {order.orderStatus}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">{order.items.map((i) => `${i.name} × ${i.qty}`).join(", ")}</p>
+              <div className="flex items-center justify-between mt-3 pt-2 border-t border-border">
+                <span className="font-bold text-sm text-foreground">₹{order.total}</span>
+                <div className="flex items-center gap-3">
+                  {order.rating && (
+                    <span className="flex items-center gap-1 text-xs text-warning"><Star className="h-3 w-3 fill-current" />{order.rating}</span>
+                  )}
+                  {order.orderStatus === "delivered" && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        order.items.forEach(item => {
+                          const menuItem = {
+                            id: item.name.toLowerCase().replace(/\s+/g, '-'),
+                            name: item.name,
+                            price: item.price,
+                            description: "Previously ordered item",
+                            image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c",
+                            category: "Reordered",
+                            isVeg: true
+                          };
+                          // @ts-ignore - simulating adding items back to cart
+                          addItem(menuItem, order.restaurantId, order.restaurantName);
+                        });
+                        toast.success("Order items added to cart!");
+                      }}
+                      className="flex items-center gap-1 text-xs text-primary font-medium"
+                    >
+                      <RotateCcw className="h-3 w-3" /> Reorder
+                    </button>
+                  )}
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </div>
+            </Link>
+          ))}
+          {filtered.length === 0 && (
+            <div className="text-center py-16 text-muted-foreground">
+              <p className="font-medium">No orders found</p>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
 };
 
 export default OrdersPage;

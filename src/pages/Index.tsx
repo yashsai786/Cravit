@@ -1,47 +1,105 @@
-import React from 'react';
-import Header from '@/components/layout/Header';
-import Hero from '@/components/home/Hero';
-import RestaurantCard from '@/components/home/RestaurantCard';
-import { RESTAURANTS, CATEGORIES } from '@/data/mockData';
-import { Button } from '@/components/ui/button';
+import { useState, useMemo } from "react";
+import Header from "@/components/layout/Header";
+import HeroSection from "@/components/home/HeroSection";
+import CuisineScroller from "@/components/home/CuisineScroller";
+import RestaurantCard from "@/components/home/RestaurantCard";
+import InstamartSection from "@/components/home/InstamartSection";
+import { restaurants } from "@/data/mockData";
+import { SlidersHorizontal } from "lucide-react";
+import { toast } from "sonner";
+
+import { useSearchParams } from "react-router-dom";
+
+type SortOption = "relevance" | "rating" | "deliveryTime" | "costLow" | "costHigh";
 
 const Index = () => {
-    return (
-        <div className="min-h-screen bg-white">
-            <Header />
-            <Hero />
-            <div className="container mx-auto px-4 py-12">
-                <section className="mb-12">
-                    <div className="flex justify-between items-end mb-8">
-                        <h2 className="text-3xl font-black text-gray-800">What's on your mind?</h2>
-                        <Button variant="ghost" className="text-orange-500 font-bold">View more &rarr;</Button>
-                    </div>
-                    <div className="flex gap-8 overflow-x-auto pb-4 scrollbar-hide">
-                        {CATEGORIES.map(cat => (
-                            <div key={cat.id} className="flex-shrink-0 flex flex-col items-center gap-3 cursor-pointer group">
-                                <div className="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center text-4xl shadow-sm border border-transparent group-hover:border-orange-200 group-hover:bg-white transition-all duration-300">
-                                    {cat.icon}
-                                </div>
-                                <span className="font-bold text-gray-600 group-hover:text-orange-600 transition-colors uppercase text-[10px] tracking-widest">{cat.name}</span>
-                            </div>
-                        ))}
-                    </div>
-                </section>
+  const [searchParams] = useSearchParams();
+  const query = searchParams.get("q") || "";
+  const [activeCuisine, setActiveCuisine] = useState("🍽️ All");
+  const [sortBy, setSortBy] = useState<SortOption>("relevance");
+  const [vegOnly, setVegOnly] = useState(false);
 
-                <section>
-                    <h2 className="text-3xl font-black text-gray-800 mb-8 items-baseline flex gap-3">
-                        Top Restaurants In Delhi
-                        <span className="text-xs font-bold text-orange-400 uppercase tracking-tighter">Verified Chains</span>
-                    </h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
-                        {RESTAURANTS.map(res => (
-                            <RestaurantCard key={res.id} {...res} />
-                        ))}
-                    </div>
-                </section>
-            </div>
+  const filtered = useMemo(() => {
+    let list = restaurants;
+    if (query) {
+      list = list.filter((r) =>
+        r.name.toLowerCase().includes(query.toLowerCase()) ||
+        r.cuisine.some(c => c.toLowerCase().includes(query.toLowerCase()))
+      );
+    }
+    if (activeCuisine !== "🍽️ All") {
+      const cuisineName = activeCuisine.replace(/^[\p{Emoji}\s]+/u, "").trim();
+      list = list.filter((r) => r.cuisine.some((c) => c.toLowerCase().includes(cuisineName.toLowerCase())));
+    }
+    if (vegOnly) list = list.filter((r) => r.isVeg);
+    if (sortBy === "rating") list = [...list].sort((a, b) => b.rating - a.rating);
+    if (sortBy === "costLow") list = [...list].sort((a, b) => a.costForTwo - b.costForTwo);
+    if (sortBy === "costHigh") list = [...list].sort((a, b) => b.costForTwo - a.costForTwo);
+    return list;
+  }, [activeCuisine, sortBy, vegOnly, query]);
+
+  return (
+    <div className="min-h-screen bg-transparent">
+      <Header />
+      <main className="w-full max-w-[1720px] mx-auto pb-20">
+        <HeroSection />
+
+        {/* Filters */}
+        <div className="flex items-center gap-2 px-4 pt-4 flex-wrap">
+          <button
+            onClick={() => {
+              toast.info("Advanced filters coming soon!");
+              console.log("Filter button clicked");
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-card shadow-card text-sm font-medium hover:bg-secondary transition-colors"
+          >
+            <SlidersHorizontal className="h-4 w-4" /> Filter
+          </button>
+          {(["relevance", "rating", "costLow", "costHigh"] as SortOption[]).map((opt) => (
+            <button
+              key={opt}
+              onClick={() => setSortBy(opt)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${sortBy === opt ? "bg-foreground text-card" : "border text-foreground hover:bg-secondary"
+                }`}
+            >
+              {opt === "relevance" ? "Relevance" : opt === "rating" ? "Rating" : opt === "costLow" ? "Cost: Low" : "Cost: High"}
+            </button>
+          ))}
+          <button
+            onClick={() => setVegOnly(!vegOnly)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${vegOnly ? "bg-accent text-accent-foreground" : "border text-foreground hover:bg-secondary"
+              }`}
+          >
+            Pure Veg
+          </button>
         </div>
-    );
+
+        <CuisineScroller active={activeCuisine} onSelect={setActiveCuisine} />
+
+        {/* Restaurant Grid */}
+        <section className="px-4">
+          <h2 className="font-display font-bold text-xl text-foreground mb-4">
+            {filtered.length} restaurants to explore
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
+            {filtered.map((r, i) => (
+              <div key={r.id} className="animate-slide-up" style={{ animationDelay: `${i * 60}ms`, animationFillMode: "both" }}>
+                <RestaurantCard restaurant={r} />
+              </div>
+            ))}
+          </div>
+          {filtered.length === 0 && (
+            <div className="text-center py-20 text-muted-foreground">
+              <p className="text-lg font-medium">No restaurants found</p>
+              <p className="text-sm mt-1">Try changing the filters</p>
+            </div>
+          )}
+        </section>
+
+        <InstamartSection />
+      </main>
+    </div>
+  );
 };
 
 export default Index;

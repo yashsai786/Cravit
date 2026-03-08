@@ -1,41 +1,90 @@
-import React from 'react';
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { Eye, EyeOff } from "lucide-react";
 
 const LoginPage = () => {
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-            <div className="w-full max-w-md bg-white p-8 rounded-3xl shadow-sm border">
-                <div className="text-center mb-10">
-                    <h1 className="text-3xl font-black text-gray-800">Login</h1>
-                    <p className="text-gray-500 mt-2 font-medium">Welcome back! Please enter your details.</p>
-                </div>
-                <form className="space-y-6">
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Email Address</label>
-                        <input
-                            type="email"
-                            placeholder="name@example.com"
-                            className="w-full px-5 py-3 rounded-xl border focus:border-orange-500 outline-none transition-colors"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Password</label>
-                        <input
-                            type="password"
-                            placeholder="••••••••"
-                            className="w-full px-5 py-3 rounded-xl border focus:border-orange-500 outline-none transition-colors"
-                        />
-                    </div>
-                    <button className="w-full py-4 bg-orange-500 text-white font-black rounded-xl uppercase tracking-wider hover:bg-orange-600 transition-colors">
-                        Sign In
-                    </button>
-                </form>
-                <div className="mt-8 text-center text-sm">
-                    <span className="text-gray-500">Don't have an account? </span>
-                    <a href="/signup" className="text-orange-500 font-bold hover:underline">Sign up for free</a>
-                </div>
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const ok = await login(email, password);
+    setLoading(false);
+    if (ok) {
+      toast.success("Welcome back!");
+      navigate("/");
+    } else {
+      toast.error("Invalid email or password");
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+      <div className="w-full max-w-sm">
+        <Link to="/" className="flex items-center gap-2 justify-center mb-8">
+          <div className="h-10 w-10 rounded-xl bg-gradient-hero flex items-center justify-center">
+            <span className="text-primary-foreground font-display font-extrabold text-lg">C</span>
+          </div>
+          <span className="font-display font-bold text-2xl text-foreground">Cravit</span>
+        </Link>
+
+        <div className="bg-card rounded-2xl shadow-card p-6">
+          <h1 className="font-display font-bold text-xl text-foreground mb-1">Sign In</h1>
+          <p className="text-sm text-muted-foreground mb-6">Welcome back! Enter your credentials</p>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1 block">Email</label>
+              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                className="w-full h-10 px-3 rounded-xl bg-secondary text-sm text-foreground border-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder="you@example.com" />
             </div>
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1 block">Password</label>
+              <div className="relative">
+                <input type={showPw ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)}
+                  className="w-full h-10 px-3 pr-10 rounded-xl bg-secondary text-sm text-foreground border-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  placeholder="••••••••" />
+                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Link to="/reset-password" className="text-xs text-primary hover:underline">Forgot password?</Link>
+            </div>
+            <button type="submit" disabled={loading}
+              className="w-full h-10 rounded-xl bg-gradient-hero text-primary-foreground font-display font-bold text-sm hover:opacity-90 transition-opacity disabled:opacity-50">
+              {loading ? "Signing in..." : "Sign In"}
+            </button>
+          </form>
+
+          <p className="text-center text-sm text-muted-foreground mt-4">
+            Don't have an account? <Link to="/register" className="text-primary font-medium hover:underline">Sign Up</Link>
+          </p>
+
+          <div className="mt-6 pt-4 border-t border-border">
+            <p className="text-[10px] text-muted-foreground text-center mb-2">Demo accounts (password: password)</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {["customer", "restaurant", "delivery", "instamart", "admin"].map((r) => (
+                <button key={r} onClick={() => { setEmail(`${r}@cravit.com`); setPassword("password"); }}
+                  className="text-[10px] px-2 py-1 rounded border text-muted-foreground hover:border-primary hover:text-primary transition-colors capitalize">
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-    );
+      </div>
+    </div>
+  );
 };
 
 export default LoginPage;
