@@ -1,149 +1,221 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, MapPin, CreditCard, Banknote, Smartphone, Check } from "lucide-react";
+import { ArrowLeft, MapPin, CreditCard, Banknote, Smartphone, Check, Home, Briefcase, Building2, Loader2, Plus, Info, X } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { mockAddresses, addLocalAddress } from "@/data/mockOrders";
 import Header from "@/components/layout/Header";
 import { toast } from "sonner";
+import { db } from "@/lib/firebase";
+import { collection, addDoc, query, where, onSnapshot } from "firebase/firestore";
 
-const paymentMethods = [
-  { id: "upi", label: "UPI", icon: Smartphone, desc: "Google Pay, PhonePe, Paytm" },
-  { id: "card", label: "Credit/Debit Card", icon: CreditCard, desc: "Visa, Mastercard, RuPay" },
-  { id: "cash", label: "Cash on Delivery", icon: Banknote, desc: "Pay when delivered" },
+const addressTypes = [
+  { id: "home", label: "Home", icon: Home },
+  { id: "work", label: "Work", icon: Briefcase },
+  { id: "other", label: "Other", icon: Building2 },
 ];
 
 const CheckoutPage = () => {
   const { items, subtotal, deliveryFee, tax, discount, total } = useCart();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const [localAddresses, setLocalAddresses] = useState(mockAddresses);
-  const [selectedAddress, setSelectedAddress] = useState(mockAddresses[0]?.id || "");
-  const [selectedPayment, setSelectedPayment] = useState("upi");
-  const [newAddressLabel, setNewAddressLabel] = useState("");
-  const [newAddressFull, setNewAddressFull] = useState("");
-  const [showNewAddr, setShowNewAddr] = useState(false);
+  
+  const [addresses, setAddresses] = useState<any[]>([]);
+  const [selectedAddress, setSelectedAddress] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [showAddressForm, setShowAddressForm] = useState(false);
 
-  const handleAddAddress = () => {
-    if (!newAddressLabel || !newAddressFull) {
-      toast.error("Please fill all fields");
-      return;
+  const [formData, setFormData] = useState({
+    city: "",
+    landmark: "",
+    pincode: "",
+    full: "",
+    type: "home"
+  });
+
+  useEffect(() => {
+    if (!user) return;
+
+    const q = query(collection(db, "address"), where("userId", "==", user.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAddresses(fetched);
+      if (fetched.length > 0 && !selectedAddress) {
+        setSelectedAddress(fetched[0].id);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const handleAddAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    if (formData.pincode.length !== 6) { toast.error("Enter a valid 6-digit pincode"); return; }
+
+    try {
+      const docRef = await addDoc(collection(db, "address"), {
+        ...formData,
+        userId: user.uid,
+        createdAt: Date.now(),
+      });
+      toast.success("Address saved!");
+      setSelectedAddress(docRef.id);
+      setShowAddressForm(false);
+      setFormData({ city: "", landmark: "", pincode: "", full: "", type: "home" });
+    } catch (error) {
+      toast.error("Failed to save address");
     }
-    const addr = {
-      id: `a${Date.now()}`,
-      label: newAddressLabel,
-      full: newAddressFull,
-      lat: 12.97,
-      lng: 77.59
-    };
-    addLocalAddress(addr);
-    setLocalAddresses([...mockAddresses]);
-    setSelectedAddress(addr.id);
-    setShowNewAddr(false);
-    setNewAddressLabel("");
-    setNewAddressFull("");
-    toast.success("Address added!");
   };
 
-  if (items.length === 0) { navigate("/cart"); return null; }
   if (!isAuthenticated) { navigate("/login"); return null; }
+  if (items.length === 0) { navigate("/cart"); return null; }
 
   return (
-    <div className="min-h-screen bg-transparent">
+    <div className="min-h-screen bg-background text-foreground">
       <Header />
-      <main className="container max-w-2xl pb-20 px-4">
-        <div className="flex items-center gap-3 pt-6 pb-4">
-          <Link to="/cart" className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center">
-            <ArrowLeft className="h-4 w-4 text-foreground" />
+      <main className="w-full max-w-[800px] mx-auto pb-20 px-6">
+        <div className="flex items-center gap-4 pt-10 pb-8">
+          <Link to="/cart" className="h-10 w-10 rounded-2xl glass border border-foreground/5 flex items-center justify-center text-foreground hover:border-primary/20 transition-all shadow-premium">
+            <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="font-display font-bold text-xl text-foreground">Checkout</h1>
+          <div>
+             <h1 className="font-display font-black text-2xl text-foreground tracking-tighter uppercase italic">Checkout Matrix</h1>
+             <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest mt-0.5">Finalize Coordinates & Logistics</p>
+          </div>
         </div>
 
-        {/* Delivery Address */}
-        <div className="p-4 rounded-xl bg-card shadow-card mb-4">
-          <div className="flex items-center gap-2 mb-3">
-            <MapPin className="h-4 w-4 text-primary" />
-            <h3 className="font-display font-bold text-sm text-foreground">Delivery Address</h3>
-          </div>
-          <div className="space-y-2">
-            {localAddresses.map((addr) => (
-              <button key={addr.id} onClick={() => setSelectedAddress(addr.id)}
-                className={`w-full text-left p-3 rounded-xl border transition-colors ${selectedAddress === addr.id ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground"}`}>
-                <div className="flex items-center gap-2">
-                  <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${selectedAddress === addr.id ? "border-primary" : "border-muted-foreground"}`}>
-                    {selectedAddress === addr.id && <div className="h-2 w-2 rounded-full bg-primary" />}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+          {/* Main Sector: Coordinates */}
+          <div className="md:col-span-12 space-y-8">
+            <section className="p-8 rounded-[3rem] glass-card border border-foreground/5 shadow-premium relative overflow-hidden">
+               <div className="absolute top-0 right-0 p-8 opacity-[0.03]">
+                  <MapPin className="h-64 w-64 text-primary" />
+               </div>
+               
+               <div className="flex items-center justify-between mb-10 relative z-10">
+                  <div>
+                    <h3 className="font-display font-black text-xl text-foreground italic uppercase tracking-tighter">Delivery Coordinates</h3>
+                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest opacity-80">Select or identify destination unit</p>
                   </div>
-                  <span className="font-medium text-sm text-foreground">{addr.label}</span>
-                </div>
-                <p className="text-xs text-muted-foreground ml-6 mt-0.5">{addr.full}</p>
-              </button>
-            ))}
-            {showNewAddr ? (
-              <div className="space-y-2 mt-2 p-3 rounded-xl bg-secondary/50">
-                <input type="text" value={newAddressLabel} onChange={(e) => setNewAddressLabel(e.target.value)}
-                  className="w-full h-9 px-3 rounded-lg bg-card text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  placeholder="Label (e.g. Grandma's House)" />
-                <input type="text" value={newAddressFull} onChange={(e) => setNewAddressFull(e.target.value)}
-                  className="w-full h-9 px-3 rounded-lg bg-card text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  placeholder="Full Address" />
-                <div className="flex gap-2">
-                  <button onClick={handleAddAddress}
-                    className="flex-1 h-9 rounded-lg bg-primary text-primary-foreground text-sm font-medium">Save Address</button>
-                  <button onClick={() => setShowNewAddr(false)}
-                    className="px-3 h-9 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium">Cancel</button>
-                </div>
-              </div>
-            ) : (
-              <button onClick={() => setShowNewAddr(true)} className="text-sm text-primary font-medium hover:underline mt-1">
-                + Add new address
-              </button>
-            )}
+                  <button 
+                    onClick={() => setShowAddressForm(!showAddressForm)}
+                    className="flex items-center gap-2 px-6 h-11 rounded-xl bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all border border-primary/20 shadow-lg shadow-primary/5"
+                  >
+                    {showAddressForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                    {showAddressForm ? "Minimize Form" : "Identify New"}
+                  </button>
+               </div>
+
+               {showAddressForm ? (
+                 <form onSubmit={handleAddAddress} className="space-y-8 animate-in slide-in-from-top-4 duration-500 relative z-10">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Operational City</label>
+                          <input type="text" required value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})}
+                            className="w-full h-12 px-5 rounded-2xl bg-foreground/5 border border-foreground/5 text-foreground text-sm font-black italic focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all" />
+                       </div>
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Pincode Protocol</label>
+                          <input type="text" required maxLength={6} value={formData.pincode} onChange={(e) => setFormData({...formData, pincode: e.target.value.replace(/\D/g, "")})}
+                            className="w-full h-12 px-5 rounded-2xl bg-foreground/5 border border-foreground/5 text-foreground text-sm font-mono font-black tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all" />
+                       </div>
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Full Coordinate String (House No.)</label>
+                       <textarea required value={formData.full} onChange={(e) => setFormData({...formData, full: e.target.value})}
+                        className="w-full h-24 px-5 py-4 rounded-2xl bg-foreground/5 border border-foreground/5 text-foreground text-sm font-black italic focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all resize-none" />
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Strategic Landmark</label>
+                       <input type="text" required value={formData.landmark} onChange={(e) => setFormData({...formData, landmark: e.target.value})}
+                        className="w-full h-12 px-5 rounded-2xl bg-foreground/5 border border-foreground/5 text-foreground text-sm font-black italic focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all" />
+                    </div>
+                    <div className="flex flex-wrap gap-4">
+                       {addressTypes.map((t) => (
+                         <button key={t.id} type="button" onClick={() => setFormData({...formData, type: t.id})}
+                           className={`flex items-center gap-2 px-6 h-11 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${formData.type === t.id ? 'bg-primary text-white border-primary shadow-xl shadow-primary/20' : 'glass border-foreground/5 text-muted-foreground hover:border-foreground/20'}`}>
+                           <t.icon className="h-4 w-4" /> {t.label}
+                         </button>
+                       ))}
+                    </div>
+                    <button type="submit" className="w-full h-14 rounded-2xl bg-primary text-white font-display font-black text-[10px] uppercase tracking-[0.3em] shadow-xl shadow-primary/30 hover:scale-[1.01] active:shadow-inner transition-all">
+                       Capture Coordinate
+                    </button>
+                 </form>
+               ) : (
+                 <div className="space-y-6 relative z-10">
+                    {loading ? (
+                      <div className="flex items-center gap-4 text-muted-foreground p-10 justify-center">
+                         <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                         <span className="text-[10px] font-black uppercase tracking-widest">Querying database sectors...</span>
+                      </div>
+                    ) : addresses.length === 0 ? (
+                      <div className="py-20 text-center rounded-[3rem] border border-dashed border-foreground/10 bg-foreground/5 shadow-inner">
+                         <Info className="h-10 w-10 text-muted-foreground mx-auto mb-4 opacity-30" />
+                         <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest opacity-60">No address manifests identified in your profile</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        {addresses.map((addr) => {
+                          const TypeIcon = addressTypes.find(t => t.id === addr.type)?.icon || Home;
+                          const active = selectedAddress === addr.id;
+                          return (
+                            <button key={addr.id} onClick={() => setSelectedAddress(addr.id)}
+                              className={`text-left p-6 rounded-[2.5rem] border transition-all group relative ${active ? "bg-primary/5 border-primary shadow-xl shadow-primary/10" : "bg-foreground/5 border-foreground/5 hover:border-foreground/10"}`}>
+                              <div className="flex items-start justify-between mb-6">
+                                 <div className={`h-11 w-11 rounded-2xl flex items-center justify-center transition-all shadow-lg ${active ? 'bg-primary text-white' : 'bg-background text-muted-foreground'}`}>
+                                    <TypeIcon className="h-5 w-5" />
+                                 </div>
+                                 {active && <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center text-white shadow-lg"><Check className="h-4 w-4" /></div>}
+                              </div>
+                              <h4 className="text-xs font-black text-foreground uppercase tracking-tight mb-2 italic">Sector: {addr.type}</h4>
+                              <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed mb-3 font-black uppercase tracking-widest opacity-80">{addr.full}</p>
+                              <p className="text-[10px] text-primary font-black uppercase tracking-[0.2em]">{addr.city} · {addr.pincode}</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                 </div>
+               )}
+            </section>
+
+            {/* Final Authorization Summary */}
+            <section className="p-10 rounded-[3.5rem] glass-card border border-foreground/5 shadow-premium mt-10">
+               <h3 className="font-display font-black text-[10px] uppercase tracking-[0.3em] text-muted-foreground mb-8 underline decoration-primary/20">Payload Sequence Summary</h3>
+               <div className="space-y-4 mb-10">
+                  {items.map((item) => (
+                    <div key={item.id} className="flex justify-between items-center group">
+                      <div className="flex flex-col">
+                        <span className="text-foreground font-black text-sm italic uppercase tracking-tighter">{item.name}</span>
+                        <span className="text-[9px] text-muted-foreground font-black uppercase tracking-widest opacity-60">QUANTITY × {item.quantity}</span>
+                      </div>
+                      <span className="text-foreground font-display font-black italic">₹{item.price * item.quantity}</span>
+                    </div>
+                  ))}
+               </div>
+               <div className="flex items-center justify-between pt-10 border-t border-foreground/10">
+                  <div>
+                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2 opaciy-80">Aggregate Authorization</p>
+                     <p className="text-4xl font-display font-black text-primary tracking-tighter italic">₹{total}</p>
+                  </div>
+                  <button 
+                    disabled={!selectedAddress}
+                    onClick={() => navigate("/payment", { 
+                      state: { 
+                        addressId: selectedAddress,
+                        addressFull: addresses.find(a => a.id === selectedAddress)?.full + ", " + addresses.find(a => a.id === selectedAddress)?.landmark
+                      } 
+                    })}
+                    className="h-16 px-12 rounded-[2rem] bg-gradient-hero text-white font-display font-black text-[10px] uppercase tracking-[0.3em] shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:grayscale"
+                  >
+                    Authorize Dispatch
+                  </button>
+               </div>
+            </section>
           </div>
         </div>
-
-        {/* Payment method selection */}
-        <div className="p-4 rounded-xl bg-card shadow-card mb-4">
-          <div className="flex items-center gap-2 mb-3">
-            <CreditCard className="h-4 w-4 text-primary" />
-            <h3 className="font-display font-bold text-sm text-foreground">Payment Method</h3>
-          </div>
-          <div className="space-y-2">
-            {paymentMethods.map((pm) => (
-              <button key={pm.id} onClick={() => setSelectedPayment(pm.id)}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-colors ${selectedPayment === pm.id ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground"}`}>
-                <pm.icon className="h-5 w-5 text-muted-foreground" />
-                <div className="flex-1 text-left">
-                  <p className="font-medium text-sm text-foreground">{pm.label}</p>
-                  <p className="text-xs text-muted-foreground">{pm.desc}</p>
-                </div>
-                {selectedPayment === pm.id && <Check className="h-4 w-4 text-primary" />}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Order Summary */}
-        <div className="p-4 rounded-xl bg-card shadow-card mb-4">
-          <h3 className="font-display font-bold text-sm text-foreground mb-3">Order Summary</h3>
-          {items.map((item) => (
-            <div key={item.id} className="flex justify-between text-sm text-foreground py-1">
-              <span>{item.name} × {item.quantity}</span>
-              <span>₹{item.price * item.quantity}</span>
-            </div>
-          ))}
-          <div className="border-t border-border mt-2 pt-2 space-y-1 text-sm">
-            <div className="flex justify-between text-foreground"><span>Subtotal</span><span>₹{subtotal}</span></div>
-            <div className="flex justify-between text-foreground"><span>Delivery</span><span className={deliveryFee === 0 ? "text-accent font-medium" : ""}>{deliveryFee === 0 ? "FREE" : `₹${deliveryFee}`}</span></div>
-            <div className="flex justify-between text-foreground"><span>GST (5%)</span><span>₹{tax}</span></div>
-            {discount > 0 && <div className="flex justify-between text-accent font-medium"><span>Discount</span><span>-₹{discount}</span></div>}
-            <div className="border-t pt-2 flex justify-between font-bold text-foreground"><span>Total</span><span>₹{total}</span></div>
-          </div>
-        </div>
-
-        <button onClick={() => navigate("/payment", { state: { addressId: selectedAddress } })}
-          className="w-full mt-6 h-12 rounded-xl bg-gradient-hero text-primary-foreground font-display font-bold text-base hover:opacity-90 transition-opacity flex items-center justify-center">
-          Proceed to Pay · ₹{total}
-        </button>
       </main>
     </div>
   );

@@ -1,19 +1,47 @@
-import React, { createContext, useContext, useState, useCallback } from "react";
-import type { MenuItem } from "@/data/mockData";
+import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { 
+  collection, 
+  query, 
+  where, 
+  onSnapshot, 
+  addDoc, 
+  deleteDoc, 
+  doc, 
+  updateDoc, 
+  getDocs, 
+  writeBatch,
+  setDoc
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from "./AuthContext";
+import { toast } from "sonner";
+
+export interface MenuItem {
+  id: string;
+  name: string;
+  price: number | string;
+  image?: string;
+  description?: string;
+  category?: string;
+  isVeg?: boolean;
+}
 
 export interface CartItem extends MenuItem {
+  price: number;
   quantity: number;
   restaurantId: string;
   restaurantName: string;
-  selectedCustomizations?: Record<string, string>;
+  userId: string;
+  remarks?: string;
+  itemId?: string; // Original menu item ID
 }
 
 interface CartContextType {
   items: CartItem[];
-  addItem: (item: MenuItem, restaurantId: string, restaurantName: string) => void;
-  removeItem: (itemId: string) => void;
-  updateQuantity: (itemId: string, quantity: number) => void;
-  clearCart: () => void;
+  addItem: (item: any, restaurantId: string, restaurantName: string, remarks?: string) => Promise<void>;
+  removeItem: (itemId: string) => Promise<void>;
+  updateQuantity: (itemId: string, quantity: number) => Promise<void>;
+  clearCart: () => Promise<void>;
   appliedCoupon: string | null;
   applyCoupon: (code: string) => void;
   removeCoupon: () => void;
@@ -23,40 +51,118 @@ interface CartContextType {
   discount: number;
   total: number;
   itemCount: number;
+  loading: boolean;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
 
-  const addItem = useCallback((item: MenuItem, restaurantId: string, restaurantName: string) => {
-    setItems((prev) => {
-      const existing = prev.find((i) => i.id === item.id);
-      if (existing) {
-        return prev.map((i) => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
-      }
-      return [...prev, { ...item, quantity: 1, restaurantId, restaurantName }];
-    });
-  }, []);
-
-  const removeItem = useCallback((itemId: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== itemId));
-  }, []);
-
-  const updateQuantity = useCallback((itemId: string, quantity: number) => {
-    if (quantity <= 0) {
-      setItems((prev) => prev.filter((i) => i.id !== itemId));
-    } else {
-      setItems((prev) => prev.map((i) => i.id === itemId ? { ...i, quantity } : i));
+  // Sync cart with Firestore
+  useEffect(() => {
+    if (!user) {
+      setItems([]);
+      setLoading(false);
+      return;
     }
-  }, []);
 
-  const clearCart = useCallback(() => {
-    setItems([]);
-    setAppliedCoupon(null);
-  }, []);
+    const q = query(collection(db, "cart"), where("userId", "==", user.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const cartItems = snapshot.docs.map(docSnap => ({
+        ...docSnap.data(),
+        id: docSnap.id, // This will be the doc id in cart collection
+        itemId: docSnap.data().itemId, // Original menu item id
+      })) as any[];
+      
+      // We need to map it correctly to the CartItem interface
+      const mappedItems = cartItems.map(item => ({
+        ...item,
+        price: Number(item.price)
+      })) as CartItem[];
+      
+      setItems(mappedItems);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const addItem = useCallback(async (item: any, restaurantId: string, restaurantName: string, remarks?: string) => {
+    if (!user) {
+      toast.error("Please sign in to add items to cart!");
+      return;
+    }
+
+    try {
+      // Check if item already in cart for this user
+      const existing = items.find(i => (i as any).itemId === item.id);
+      if (existing) {
+        await updateDoc(doc(db, "cart", existing.id), {
+          quantity: existing.quantity + 1
+        });
+      } else {
+        await addDoc(collection(db, "cart"), {
+          itemId: item.id,
+          name: item.name,
+          price: Number(item.price),
+          image: item.image || "",
+          description: item.description || "",
+          restaurantId,
+          restaurantName,
+          userId: user.uid,
+          quantity: 1,
+          remarks: remarks || "",
+          isVeg: item.isVeg || false,
+          category: item.category || ""
+        });
+      }
+      toast.success("Added to cart!");
+    } catch (error) {
+      console.error("Error adding to cart", error);
+      toast.error("Failed to add item");
+    }
+  }, [user, items]);
+
+  const removeItem = useCallback(async (cartDocId: string) => {
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, "cart", cartDocId));
+    } catch (error) {
+      console.error("Error removing from cart", error);
+    }
+  }, [user]);
+
+  const updateQuantity = useCallback(async (cartDocId: string, quantity: number) => {
+    if (!user) return;
+    if (quantity <= 0) {
+      await removeItem(cartDocId);
+    } else {
+      try {
+        await updateDoc(doc(db, "cart", cartDocId), { quantity });
+      } catch (error) {
+        console.error("Error updating quantity", error);
+      }
+    }
+  }, [user, removeItem]);
+
+  const clearCart = useCallback(async () => {
+    if (!user) return;
+    try {
+      const q = query(collection(db, "cart"), where("userId", "==", user.uid));
+      const snapshot = await getDocs(q);
+      const batch = writeBatch(db);
+      snapshot.docs.forEach((docSnap) => {
+        batch.delete(docSnap.ref);
+      });
+      await batch.commit();
+    } catch (error) {
+      console.error("Error clearing cart", error);
+    }
+  }, [user]);
 
   const applyCoupon = useCallback((code: string) => setAppliedCoupon(code), []);
   const removeCoupon = useCallback(() => setAppliedCoupon(null), []);
@@ -75,6 +181,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       items, addItem, removeItem, updateQuantity, clearCart,
       appliedCoupon, applyCoupon, removeCoupon,
       subtotal, deliveryFee, tax, discount, total, itemCount,
+      loading
     }}>
       {children}
     </CartContext.Provider>

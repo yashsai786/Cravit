@@ -22,9 +22,14 @@ import RestaurantDashboard from "./pages/dashboard/RestaurantDashboard";
 import DeliveryDashboard from "./pages/dashboard/DeliveryDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import InstamartDashboard from "./pages/dashboard/InstamartDashboard";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
+import { RoleGuard } from "@/components/RoleGuard";
 
 const queryClient = new QueryClient();
+
+import RestaurantDetails from "./pages/auth/RestaurantDetails";
+import DeliveryDetails from "./pages/auth/DeliveryDetails";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -50,15 +55,18 @@ const App = () => (
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/profile" element={<RoleGuard><Profile /></RoleGuard>} />
+              <Route path="/register/restaurant-details" element={<RoleGuard requiredRole="restaurant_owner"><RestaurantDetails /></RoleGuard>} />
+              <Route path="/register/delivery-details" element={<RoleGuard requiredRole="delivery_partner"><DeliveryDetails /></RoleGuard>} />
               {/* Dashboards */}
-              <Route path="/dashboard/restaurant" element={<RestaurantDashboard />} />
-              <Route path="/dashboard/restaurant/*" element={<RestaurantDashboard />} />
-              <Route path="/dashboard/delivery" element={<DeliveryDashboard />} />
-              <Route path="/dashboard/delivery/*" element={<DeliveryDashboard />} />
-              <Route path="/dashboard/admin" element={<AdminDashboard />} />
-              <Route path="/dashboard/admin/*" element={<AdminDashboard />} />
-              <Route path="/dashboard/instamart" element={<InstamartDashboard />} />
-              <Route path="/dashboard/instamart/*" element={<InstamartDashboard />} />
+              <Route path="/dashboard/restaurant" element={<RoleGuard requiredRole="restaurant_owner"><RestaurantDashboard /></RoleGuard>} />
+              <Route path="/dashboard/restaurant/*" element={<RoleGuard requiredRole="restaurant_owner"><RestaurantDashboard /></RoleGuard>} />
+              <Route path="/dashboard/delivery" element={<RoleGuard requiredRole="delivery_partner"><DeliveryDashboard /></RoleGuard>} />
+              <Route path="/dashboard/delivery/*" element={<RoleGuard requiredRole="delivery_partner"><DeliveryDashboard /></RoleGuard>} />
+              <Route path="/dashboard/admin" element={<RoleGuard requiredRole="admin"><AdminDashboard /></RoleGuard>} />
+              <Route path="/dashboard/admin/*" element={<RoleGuard requiredRole="admin"><AdminDashboard /></RoleGuard>} />
+              <Route path="/dashboard/instamart" element={<RoleGuard requiredRole="insta_handler"><InstamartDashboard /></RoleGuard>} />
+              <Route path="/dashboard/instamart/*" element={<RoleGuard requiredRole="insta_handler"><InstamartDashboard /></RoleGuard>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

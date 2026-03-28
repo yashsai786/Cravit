@@ -1,26 +1,24 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, MapPin, ShoppingCart, User, ChevronDown, LogOut, LayoutDashboard, ClipboardList, Moon, Sun } from "lucide-react";
+import { Search, MapPin, ShoppingCart, User, ChevronDown, LogOut, LayoutDashboard, ClipboardList, Moon, Sun, Check, MapPin as MapPinIcon } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 const Header = () => {
   const { itemCount } = useCart();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { userProfile, loading, logout, updateProfile } = useAuth();
   const [searchQuery, setSearchQuery] = useState(new URLSearchParams(window.location.search).get("q") || "");
   const [showMenu, setShowMenu] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [pincode, setPincode] = useState(userProfile?.pincode || "");
   const [darkMode, setDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
   const navigate = useNavigate();
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setSearchQuery(val);
-    const params = new URLSearchParams(window.location.search);
-    if (val) params.set("q", val);
-    else params.delete("q");
-    navigate(`${window.location.pathname}?${params.toString()}`, { replace: true });
-  };
+  useEffect(() => {
+    if (userProfile?.pincode) setPincode(userProfile.pincode);
+  }, [userProfile?.pincode]);
 
   useEffect(() => {
     if (darkMode) {
@@ -32,87 +30,192 @@ const Header = () => {
     }
   }, [darkMode]);
 
-  const dashboardPath = user?.role === "restaurant" ? "/dashboard/restaurant"
-    : user?.role === "delivery" ? "/dashboard/delivery"
-      : user?.role === "admin" ? "/dashboard/admin"
-        : user?.role === "instamart" ? "/dashboard/instamart"
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchQuery(val);
+    const params = new URLSearchParams(window.location.search);
+    if (val) params.set("q", val);
+    else params.delete("q");
+    navigate(`${window.location.pathname}?${params.toString()}`, { replace: true });
+  };
+
+  const handleUpdatePincode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pincode.length !== 6) {
+      toast.error("Format requires 6-digit Pincode.");
+      return;
+    }
+    try {
+      await updateProfile({ pincode });
+      toast.success("Logistics Vector Locked!");
+      setShowLocationModal(false);
+    } catch (error) {
+      toast.error("Auth server protocols denied.");
+    }
+  };
+
+  const dashboardPath = userProfile?.role === "restaurant_owner" ? "/dashboard/restaurant"
+    : userProfile?.role === "delivery_partner" ? "/dashboard/delivery"
+      : userProfile?.role === "admin" ? "/dashboard/admin"
+        : userProfile?.role === "insta_handler" ? "/dashboard/instamart"
           : null;
 
   return (
-    <header className="sticky top-0 z-50 bg-card shadow-card">
-      <div className="w-full max-w-[1720px] mx-auto flex h-16 items-center gap-4 px-4">
-        <Link to="/" className="flex items-center gap-2 shrink-0">
-          <div className="h-8 w-8 rounded-lg bg-gradient-hero flex items-center justify-center">
-            <span className="text-primary-foreground font-display font-extrabold text-sm">C</span>
+    <header className="sticky top-0 z-50 glass border-b border-foreground/5 shadow-premium">
+      <div className="w-full max-w-[1720px] mx-auto flex h-20 items-center gap-6 px-8">
+        <Link to="/" className="flex items-center gap-3 shrink-0 group">
+          <div className="h-11 w-11 rounded-2xl bg-gradient-hero flex items-center justify-center shadow-xl shadow-primary/20 group-hover:scale-110 transition-transform duration-300">
+            <span className="text-white font-display font-black text-xl italic">C</span>
           </div>
-          <span className="font-display font-bold text-xl text-foreground hidden sm:block">Cravit</span>
+          <span className="font-display font-black text-2xl text-foreground hidden sm:block tracking-tighter italic uppercase">Cravit</span>
         </Link>
 
-        <button className="hidden md:flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0">
-          <MapPin className="h-4 w-4 text-primary" />
-          <span className="font-medium text-foreground">Bangalore</span>
-          <ChevronDown className="h-3 w-3" />
-        </button>
+        <div className="relative shrink-0">
+          <button 
+            onClick={() => setShowLocationModal(!showLocationModal)}
+            className="flex items-center gap-3 group transition-all p-2 rounded-2xl hover:bg-foreground/5 hover:backdrop-blur-md"
+          >
+            <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-lg shadow-primary/10">
+              <MapPin className="h-4.5 w-4.5" />
+            </div>
+            <div className="hidden md:flex flex-col items-start leading-none gap-1">
+              <span className="text-[9px] uppercase font-black text-muted-foreground tracking-[0.2em]">Target Zone</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-black text-foreground italic tracking-tight">
+                  {userProfile?.pincode || "Def Loc"}
+                </span>
+                <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform ${showLocationModal ? 'rotate-180' : ''}`} />
+              </div>
+            </div>
+          </button>
 
-        <div className="flex-1 max-w-xl">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input type="text" placeholder="Search for restaurants and food" value={searchQuery}
+          {showLocationModal && (
+            <>
+              <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setShowLocationModal(false)}></div>
+              <div className="absolute left-0 top-full mt-4 w-80 p-8 glass-card rounded-[2.5rem] z-50 animate-in fade-in slide-in-from-top-4 duration-500">
+                <h3 className="font-display font-black text-xl text-foreground mb-2 italic uppercase tracking-tight">Set Vector</h3>
+                <p className="text-[10px] text-muted-foreground mb-6 font-bold uppercase tracking-widest leading-relaxed">Deliveries and exclusive sector protocols will be calibrated to your area.</p>
+                <form onSubmit={handleUpdatePincode} className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Logistics Coordinate</label>
+                    <input 
+                      autoFocus
+                      type="text" 
+                      placeholder="e.g. 400001" 
+                      value={pincode}
+                      maxLength={6}
+                      onChange={(e) => setPincode(e.target.value.replace(/\D/g, ""))}
+                      className="w-full h-14 px-6 rounded-2xl bg-foreground/5 border border-foreground/10 text-foreground font-mono font-bold text-center text-xl tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all placeholder:text-muted-foreground/30"
+                    />
+                  </div>
+                  <button 
+                    type="submit"
+                    className="w-full h-12 rounded-3xl bg-primary text-white font-display font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                  >
+                    <Check className="h-4 w-4" /> Finalize Signal
+                  </button>
+                </form>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="flex-1 max-w-2xl mx-10">
+          <div className="relative group">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+            <input type="text" placeholder="Protocol: Search for entities and nourishment" value={searchQuery}
               onChange={handleSearch}
-              className="w-full h-10 pl-10 pr-4 rounded-xl bg-secondary border-none text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all" />
+              className="w-full h-12 pl-14 pr-6 rounded-2xl bg-foreground/5 border border-transparent focus:bg-foreground/10 focus:border-foreground/10 text-sm font-bold text-foreground placeholder:text-muted-foreground/40 focus:outline-none shadow-inner transition-all" />
           </div>
         </div>
 
-        <nav className="flex items-center gap-1">
+        <nav className="flex items-center gap-4">
           <button onClick={() => setDarkMode(!darkMode)}
-            className="flex items-center justify-center h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            aria-label="Toggle dark mode">
-            {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            className="flex items-center justify-center h-12 w-12 rounded-2xl bg-foreground/5 border border-foreground/5 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all group"
+            aria-label="Toggle theme">
+            {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
 
-          <Link to="/instamart" className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
-            Instamart
+          <Link to="/instamart" className="hidden lg:flex items-center gap-2 px-6 h-11 rounded-2xl bg-foreground/5 border border-foreground/5 text-[10px] font-black text-muted-foreground hover:text-foreground hover:bg-foreground/10 transition-all uppercase tracking-widest italic">
+             <LayoutDashboard className="h-4 w-4 text-primary" />
+             Cybermart
           </Link>
 
-          {isAuthenticated ? (
+          {!loading && userProfile ? (
             <div className="relative">
-              <button onClick={() => setShowMenu(!showMenu)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
-                <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                  {user?.name[0]}
-                </div>
-                <span className="hidden sm:inline">{user?.name.split(" ")[0]}</span>
-              </button>
-              {showMenu && (
-                <div className="absolute right-0 top-full mt-1 w-48 bg-card rounded-xl shadow-elevated border border-border py-1 z-50">
-                  <p className="px-3 py-2 text-xs text-muted-foreground border-b border-border">{user?.email}</p>
-                  <Link to="/orders" onClick={() => setShowMenu(false)} className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-secondary">
-                    <ClipboardList className="h-4 w-4" /> My Orders
-                  </Link>
-                  {dashboardPath && (
-                    <Link to={dashboardPath} onClick={() => setShowMenu(false)} className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-secondary">
-                      <LayoutDashboard className="h-4 w-4" /> Dashboard
-                    </Link>
+              <button 
+                onClick={() => setShowMenu(!showMenu)}
+                className="flex items-center gap-3 p-1.5 pr-4 rounded-3xl bg-foreground/5 border border-foreground/5 hover:border-foreground/10 transition-all shadow-lg"
+              >
+                <div className="h-9 w-9 rounded-2xl bg-gradient-hero flex items-center justify-center overflow-hidden border border-foreground/10 shadow-inner">
+                  {userProfile.photoURL ? (
+                    <img src={userProfile.photoURL} alt="Unit avatar" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-sm font-black text-white uppercase font-display italic">
+                      {userProfile.displayName ? userProfile.displayName[0] : "O"}
+                    </span>
                   )}
-                  <button onClick={() => { logout(); setShowMenu(false); navigate("/"); }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-secondary">
-                    <LogOut className="h-4 w-4" /> Logout
-                  </button>
                 </div>
+                <div className="hidden md:flex flex-col items-start leading-none">
+                  <span className="text-xs font-black text-foreground italic tracking-tight">
+                    {userProfile.displayName ? userProfile.displayName.split(" ")[0] : "Operative"}
+                  </span>
+                  <span className="text-[8px] text-muted-foreground uppercase font-black tracking-widest mt-1">{userProfile.role.replace("_", " ")}</span>
+                </div>
+                <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform duration-300 ${showMenu ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {showMenu && (
+                <>
+                  <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setShowMenu(false)}></div>
+                  <div className="absolute right-0 top-full mt-4 w-72 glass-card rounded-[2.5rem] py-4 z-50 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className="px-8 py-4 border-b border-foreground/5 mb-2">
+                       <p className="font-display font-black text-foreground truncate text-lg italic uppercase tracking-tighter leading-none">{userProfile.displayName || "Operative"}</p>
+                       <p className="text-[10px] text-muted-foreground truncate mt-1 font-bold uppercase tracking-widest">{userProfile.email}</p>
+                    </div>
+                    
+                    <div className="px-4 py-2 space-y-1">
+                      {[
+                        { label: "Kernel Profile", to: "/profile", icon: <User className="h-4 w-4" /> },
+                        { label: "Deployment Logs", to: "/orders", icon: <ClipboardList className="h-4 w-4" /> },
+                      ].map(link => (
+                        <Link key={link.to} to={link.to} onClick={() => setShowMenu(false)}
+                          className="flex items-center gap-4 px-6 py-3 text-[10px] font-black text-muted-foreground hover:bg-foreground/5 hover:text-foreground transition-all rounded-2xl uppercase tracking-widest">
+                          {link.icon} {link.label}
+                        </Link>
+                      ))}
+                      
+                      {dashboardPath && (
+                        <Link to={dashboardPath} onClick={() => setShowMenu(false)}
+                          className="flex items-center gap-4 px-6 py-4 text-[10px] font-black text-primary bg-primary/5 hover:bg-primary/10 transition-all rounded-3xl uppercase tracking-widest mt-4 group">
+                          <LayoutDashboard className="h-5 w-5 group-hover:rotate-12 transition-transform" /> COMMAND CENTER
+                        </Link>
+                      )}
+                    </div>
+                    
+                    <div className="pt-4 mt-2 border-t border-foreground/5 px-4">
+                      <button 
+                        onClick={() => { logout(); setShowMenu(false); navigate("/"); }}
+                        className="w-full flex items-center justify-center gap-3 h-12 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all rounded-3xl font-display font-black text-[10px] uppercase tracking-widest"
+                      >
+                        <LogOut className="h-4 w-4" /> Terminate Link
+                      </button>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           ) : (
-            <Link to="/login" className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+            <Link to="/login" className="flex items-center gap-3 px-8 h-11 rounded-2xl bg-primary text-white hover:scale-105 active:scale-95 transition-all font-display font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20">
               <User className="h-4 w-4" />
-              <span className="hidden sm:inline">Sign In</span>
+              <span>Initiate Link</span>
             </Link>
           )}
 
-          <Link to="/cart" className="relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
-            <ShoppingCart className="h-4 w-4" />
-            <span className="hidden sm:inline">Cart</span>
+          <Link to="/cart" className="relative flex items-center justify-center h-12 w-12 rounded-2xl bg-foreground/5 border border-foreground/5 text-muted-foreground hover:text-primary hover:border-primary/20 transition-all group shadow-lg">
+            <ShoppingCart className="h-5 w-5 group-hover:scale-110 transition-transform" />
             {itemCount > 0 && (
-              <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs bg-primary text-primary-foreground border-2 border-card">
+              <Badge className="absolute -top-2 -right-2 h-6 w-6 flex items-center justify-center p-0 text-[10px] font-black bg-primary text-white border-4 border-background shadow-xl animate-in zoom-in duration-300 rounded-full">
                 {itemCount}
               </Badge>
             )}

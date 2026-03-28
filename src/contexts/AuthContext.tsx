@@ -1,67 +1,211 @@
-import React, { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { 
+  onAuthStateChanged, 
+  User, 
+  signInWithPopup, 
+  signInAnonymously, 
+  signOut,
+  sendPasswordResetEmail,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword
+} from "firebase/auth";
+import { 
+  doc, 
+  getDoc, 
+  setDoc, 
+  onSnapshot 
+} from "firebase/firestore";
+import { auth, db, googleProvider } from "@/lib/firebase";
 
-export type UserRole = "customer" | "restaurant" | "delivery" | "instamart" | "admin";
+export type UserRole = "customer" | "admin" | "restaurant_owner" | "delivery_partner" | "insta_handler";
+export type UserStatus = "active" | "pending" | "rejected" | "blocked";
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
+export interface UserProfile {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
   role: UserRole;
-  avatar?: string;
+  status: UserStatus;
+  createdAt: number;
+  pincode?: string;
+  contact?: string;
 }
 
 interface AuthContextType {
   user: User | null;
+  userProfile: UserProfile | null;
+  loading: boolean;
+  signInWithGoogle: () => Promise<void>;
+  signInGuest: () => Promise<void>;
+  login: (email: string, pass: string) => Promise<boolean>;
+  signUp: (email: string, pass: string, name: string, contact: string, role: UserRole) => Promise<boolean>;
+  logout: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
-  register: (name: string, email: string, password: string, role: UserRole) => Promise<boolean>;
-  logout: () => void;
-  switchRole: (role: UserRole) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const mockUsers: Record<string, User & { password: string }> = {
-  "customer@cravit.com": { id: "u1", name: "Rahul Sharma", email: "customer@cravit.com", phone: "9876543210", role: "customer", password: "password" },
-  "restaurant@cravit.com": { id: "u2", name: "Priya Patel", email: "restaurant@cravit.com", phone: "9876543211", role: "restaurant", password: "password" },
-  "delivery@cravit.com": { id: "u3", name: "Amit Kumar", email: "delivery@cravit.com", phone: "9876543212", role: "delivery", password: "password" },
-  "instamart@cravit.com": { id: "u4", name: "Neha Singh", email: "instamart@cravit.com", phone: "9876543213", role: "instamart", password: "password" },
-  "admin@cravit.com": { id: "u5", name: "Admin User", email: "admin@cravit.com", phone: "9876543214", role: "admin", password: "password" },
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const found = mockUsers[email.toLowerCase()];
-    if (found && found.password === password) {
-      const { password: _, ...userData } = found;
-      setUser(userData);
-      return true;
+  useEffect(() => {
+    let unsubProfile: (() => void) | null = null;
+
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser);
+      
+      // Clear previous listener if it exists
+      if (unsubProfile) {
+        unsubProfile();
+        unsubProfile = null;
+      }
+
+      if (firebaseUser) {
+        const userDocRef = doc(db, "users", firebaseUser.uid);
+        
+        unsubProfile = onSnapshot(userDocRef, (snapshot) => {
+          if (snapshot.exists()) {
+            setUserProfile(snapshot.data() as UserProfile);
+          } else {
+            const newProfile: UserProfile = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName || "User",
+              photoURL: firebaseUser.photoURL,
+              role: "customer",
+              status: "active",
+              createdAt: Date.now(),
+            };
+            setDoc(userDocRef, newProfile);
+            setUserProfile(newProfile);
+          }
+          setLoading(false);
+        }, (error) => {
+          console.error("Profile listener error", error);
+          setLoading(false);
+        });
+      } else {
+        setUserProfile(null);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      if (unsubProfile) unsubProfile();
+    };
+  }, []);
+
+  const signInWithGoogle = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      console.error("Google sign in error", error);
+      throw error;
     }
-    return false;
-  }, []);
+  };
 
-  const register = useCallback(async (name: string, email: string, _password: string, role: UserRole) => {
-    setUser({ id: `u${Date.now()}`, name, email, phone: "", role });
-    return true;
-  }, []);
+  const signInGuest = async () => {
+    try {
+      await signInAnonymously(auth);
+    } catch (error) {
+      console.error("Anonymous sign in error", error);
+      throw error;
+    }
+  };
 
-  const logout = useCallback(() => setUser(null), []);
-  const switchRole = useCallback((role: UserRole) => {
-    setUser((prev) => prev ? { ...prev, role } : null);
-  }, []);
+  const login = async (email: string, pass: string) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+      return true;
+    } catch (error) {
+      console.error("Login error", error);
+      return false;
+    }
+  };
 
-  return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, register, logout, switchRole }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const signUp = async (email: string, pass: string, name: string, contact: string, role: UserRole = "customer") => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+      const user = userCredential.user;
+      
+      // Determine initial status: only customers and admins(manually set) are active by default
+      const status: UserStatus = (role === "customer") ? "active" : "pending";
+      
+      // Create user profile in firestore explicitly for email/pass registration
+      const newProfile: UserProfile = {
+        uid: user.uid,
+        email: user.email,
+        displayName: name,
+        photoURL: null,
+        role: role,
+        status: status,
+        contact: contact,
+        createdAt: Date.now(),
+      };
+      
+      await setDoc(doc(db, "users", user.uid), newProfile);
+      return true;
+    } catch (error) {
+      console.error("Sign up error", error);
+      return false;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Logout error", error);
+      throw error;
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } catch (error) {
+      console.error("Password reset error", error);
+      throw error;
+    }
+  };
+
+  const updateProfile = async (updates: Partial<UserProfile>) => {
+    if (!user) return;
+    try {
+      await setDoc(doc(db, "users", user.uid), updates, { merge: true });
+    } catch (error) {
+      console.error("Update profile error", error);
+      throw error;
+    }
+  };
+
+  const value = {
+    user,
+    userProfile,
+    loading,
+    signInWithGoogle,
+    signInGuest,
+    login,
+    signUp,
+    logout,
+    resetPassword,
+    updateProfile,
+    isAuthenticated: !!user,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
 };

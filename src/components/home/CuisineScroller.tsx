@@ -7,20 +7,23 @@ interface Props {
 
 const CuisineScroller = ({ active, onSelect }: Props) => {
   return (
-    <div className="flex gap-2 overflow-x-auto scrollbar-hide py-4 px-4">
-      {cuisineFilters.map((c) => (
-        <button
-          key={c}
-          onClick={() => onSelect(c)}
-          className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-            active === c
-              ? "bg-foreground text-card"
-              : "bg-secondary text-secondary-foreground hover:bg-muted"
-          }`}
-        >
-          {c}
-        </button>
-      ))}
+    <div className="flex gap-4 overflow-x-auto scrollbar-hide py-8 px-6">
+      {cuisineFilters.map((c) => {
+        const isActive = active === c;
+        return (
+          <button
+            key={c}
+            onClick={() => onSelect(c)}
+            className={`shrink-0 px-8 h-12 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+              isActive
+                ? "bg-primary text-white border-primary shadow-xl shadow-primary/30 scale-105"
+                : "glass text-muted-foreground border-foreground/5 hover:border-foreground/20 hover:text-foreground"
+            }`}
+          >
+            {c}
+          </button>
+        );
+      })}
     </div>
   );
 };
