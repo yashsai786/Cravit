@@ -30,24 +30,76 @@ const PaymentPage = () => {
 
   const handlePay = async () => {
     if (!user) { toast.error("User not authenticated"); return; }
-    if (selected === "upi" && !upiId) { toast.error("Enter UPI ID"); return; }
-    if (selected === "card" && (!cardNumber || !expiry || !cvv)) { toast.error("Fill all card details"); return; }
+    
+    // COD selection
+    if (selected === "cash") {
+      executeOrder();
+      return;
+    }
 
+    // Razorpay Integration for Online Payments
+    setProcessing(true);
+    
+    const options = {
+      key: "rzp_test_SaESeZ2yq0rqPc",
+      amount: total * 100, // Amount in paise
+      currency: "INR",
+      name: "Cravit — Don't Wait, Grab It",
+      description: "Secure Digital Culinary Procurement",
+      image: "/cravit.png",
+      handler: function (response: any) {
+        console.log("Payment Successful", response);
+        toast.success("Transaction Authorized: " + response.razorpay_payment_id);
+        executeOrder();
+      },
+      prefill: {
+        name: userProfile?.displayName || "",
+        email: user.email || "",
+        contact: userProfile?.contact || "",
+      },
+      notes: {
+        address: location.state?.addressFull || "Default",
+      },
+      theme: {
+        color: "#6366f1", // Indigo-600
+      },
+      modal: {
+        ondismiss: function() {
+          setProcessing(false);
+          toast.error("Transaction Aborted by Operative");
+        }
+      }
+    };
+
+    try {
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+    } catch (err) {
+      console.error("Razorpay trigger failure", err);
+      toast.error("Payment Gateway Protocol Failure");
+      setProcessing(false);
+    }
+  };
+
+  const executeOrder = async () => {
     setProcessing(true);
 
     try {
       const addressId = location.state?.addressId || "default";
       const customOrderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-      // Fetch pincode from address document for geofenced dispatch
       let orderPincode = "";
       let orderFullAddress = location.state?.addressFull || "Default Address";
+      let destLat = location.state?.lat || null;
+      let destLng = location.state?.lng || null;
       
       if (addressId !== "default") {
         const addrDoc = await getDoc(doc(db, "address", addressId));
         if (addrDoc.exists()) {
           orderPincode = addrDoc.data().pincode || "";
           orderFullAddress = addrDoc.data().full + ", " + addrDoc.data().landmark;
+          destLat = addrDoc.data().lat || destLat;
+          destLng = addrDoc.data().lng || destLng;
         }
       }
 
@@ -63,6 +115,8 @@ const PaymentPage = () => {
         addressId: addressId,
         address: orderFullAddress,
         pincode: orderPincode,
+        destLat,
+        destLng,
         paymentMethod: selected.toUpperCase(),
         totalAmount: total,
         paymentStatus: selected === "cash" ? "pending" : "paid",
@@ -142,39 +196,18 @@ const PaymentPage = () => {
           ))}
         </div>
 
-        {/* Payment form */}
-        {selected === "upi" && (
-          <div className="p-6 rounded-[2.5rem] bg-slate-900 border border-slate-800 mb-8 animate-in slide-in-from-top-4 duration-500">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block ml-1">Virtual Payment Address (VPA)</label>
-            <input type="text" value={upiId} onChange={(e) => setUpiId(e.target.value)}
-              placeholder="username@bank" className="w-full h-12 px-5 rounded-2xl bg-slate-800 border border-slate-700 text-white font-bold placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all tracking-wide" />
+        {/* Razorpay Information Panels */}
+        {selected !== "cash" && (
+          <div className="p-8 rounded-[2.5rem] bg-indigo-500/10 border border-indigo-500/20 mb-8 animate-in zoom-in duration-500 text-center relative overflow-hidden group">
+            <div className="absolute -top-10 -right-10 h-32 w-32 bg-primary/10 rounded-full blur-2xl group-hover:bg-primary/20 transition-all" />
+            <Smartphone className="h-10 w-10 text-primary mx-auto mb-4" />
+            <h3 className="font-display font-black text-white italic uppercase tracking-tighter text-lg mb-2">Digital Escrow</h3>
+            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest leading-relaxed">
+              Upon execution, a secure Razorpay modal will initialize for your <span className="text-primary">{selected.toUpperCase()}</span> authorization.
+            </p>
           </div>
         )}
 
-        {selected === "card" && (
-          <div className="p-6 rounded-[2.5rem] bg-slate-900 border border-slate-800 mb-8 space-y-4 animate-in slide-in-from-top-4 duration-500">
-            <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block ml-1">Card Identity</label>
-              <input type="text" value={cardNumber} onChange={(e) => setCardNumber(e.target.value)}
-                placeholder="0000 0000 0000 0000" maxLength={19}
-                className="w-full h-12 px-5 rounded-2xl bg-slate-800 border border-slate-700 text-white font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block ml-1">Validity</label>
-                <input type="text" value={expiry} onChange={(e) => setExpiry(e.target.value)}
-                  placeholder="MM/YY" maxLength={5}
-                  className="w-full h-12 px-5 rounded-2xl bg-slate-800 border border-slate-700 text-white font-mono focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block ml-1">CVV Security</label>
-                <input type="password" value={cvv} onChange={(e) => setCvv(e.target.value)}
-                  placeholder="•••" maxLength={4}
-                  className="w-full h-12 px-5 rounded-2xl bg-slate-800 border border-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all" />
-              </div>
-            </div>
-          </div>
-        )}
 
         {selected === "cash" && (
           <div className="p-6 rounded-[2.5rem] bg-slate-900 border border-slate-800 mb-8 animate-in slide-in-from-top-4 duration-500">
