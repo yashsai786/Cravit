@@ -12,6 +12,7 @@ const OrderTrackingPage = () => {
   const [order, setOrder] = useState<any>(null);
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mapObj, setMapObj] = useState<any>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -32,6 +33,58 @@ const OrderTrackingPage = () => {
 
     return () => unsub();
   }, [id]);
+
+  // Map Initialization
+  useEffect(() => {
+    if (order && order.destLat && !mapObj) {
+      const initMap = async () => {
+        try {
+          const { loadMapplsSDK } = await import("@/lib/mappls");
+          const token = await loadMapplsSDK();
+          
+          if (typeof (window as any).mappls === 'undefined') {
+            setTimeout(initMap, 500);
+            return;
+          }
+
+          const mapContainer = document.getElementById("customer-tracker-map");
+          if (!mapContainer) return;
+
+          const map = new (window as any).mappls.Map("customer-tracker-map", {
+            center: [order.destLat, order.destLng],
+            zoom: 15,
+            token: token
+          });
+
+          setMapObj(map);
+        } catch (err) {
+          console.error("CUSTOMER_MAP_SYNC_FAILURE", err);
+        }
+      };
+      initMap();
+    }
+  }, [order, mapObj]);
+
+  // Real-time Coordinate Render
+  useEffect(() => {
+    if (mapObj && order && order.deliveryPartnerLat) {
+      if (typeof (window as any).mappls.direction !== 'function') {
+        console.warn("CUSTOMER_HUD_DIRECTION_ENGINE_PENDING");
+        return;
+      }
+      const p1 = `${order.deliveryPartnerLat},${order.deliveryPartnerLng}`;
+      const p2 = `${order.destLat},${order.destLng}`;
+      
+      (window as any).mappls.direction({
+        map: mapObj,
+        start: p1,
+        end: p2,
+        callback: (res: any) => {
+           console.log("Vector trace updated", res);
+        }
+      });
+    }
+  }, [mapObj, order?.deliveryPartnerLat]);
 
   if (loading) return (
     <div className="min-h-screen bg-[#0F172A]">
@@ -72,26 +125,21 @@ const OrderTrackingPage = () => {
         </div>
 
         {/* Map placeholder */}
-        <div className="rounded-[3rem] overflow-hidden mb-10 relative bg-slate-900/50 border border-slate-800 shadow-2xl h-[360px]">
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 z-10">
-            <div className="h-20 w-20 rounded-[2rem] bg-primary/10 flex items-center justify-center mb-6 border border-primary/20 animate-pulse">
-              <Navigation className="h-10 w-10 text-primary" />
-            </div>
-            <p className="font-display font-black text-2xl text-white uppercase italic tracking-tight">Live Vector Tracking</p>
-            <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mt-2">Satellite Coordinate Synchronization Active</p>
-            {isActive && (
-              <div className="mt-6 flex items-center gap-3 px-6 py-2.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 shadow-lg shadow-emerald-500/5">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Real-time Stream Online</span>
+        <div id="customer-tracker-map" className="rounded-[3rem] overflow-hidden mb-10 relative bg-slate-900/50 border border-slate-800 shadow-2xl h-[420px] z-10 transition-all duration-1000">
+          {!order.deliveryPartnerLat && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 z-20 bg-slate-950/40 backdrop-blur-sm">
+              <div className="h-20 w-20 rounded-[2rem] bg-primary/10 flex items-center justify-center mb-6 border border-primary/20 animate-pulse">
+                <Navigation className="h-10 w-10 text-primary" />
               </div>
-            )}
-          </div>
-          {/* Grid pattern overlay */}
+              <p className="font-display font-black text-2xl text-white uppercase italic tracking-tight">Awaiting Vector Seal</p>
+              <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mt-2">Real-time coordinates available upon partner dispatch</p>
+            </div>
+          )}
+          {/* Grid fallback */}
           <div className="absolute inset-0 opacity-[0.05]" style={{
             backgroundImage: "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(to right, rgba(255,255,255,0.1) 1px, transparent 1px)",
             backgroundSize: "40px 40px"
           }} />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent pointer-events-none" />
         </div>
 
         {/* Status progress bar */}

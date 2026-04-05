@@ -39,7 +39,7 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   signInGuest: () => Promise<void>;
   login: (email: string, pass: string) => Promise<boolean>;
-  signUp: (email: string, pass: string, name: string, contact: string, role: UserRole) => Promise<boolean>;
+  signUp: (email: string, pass: string, name: string, contact: string, role: UserRole, photoURL?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
@@ -129,7 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (email: string, pass: string, name: string, contact: string, role: UserRole = "customer") => {
+  const signUp = async (email: string, pass: string, name: string, contact: string, role: UserRole = "customer", photoURL: string = "") => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const user = userCredential.user;
@@ -142,7 +142,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         uid: user.uid,
         email: user.email,
         displayName: name,
-        photoURL: null,
+        photoURL: photoURL || null,
         role: role,
         status: status,
         contact: contact,

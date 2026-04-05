@@ -4,12 +4,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import { toast } from "sonner";
-import { Store, MapPin, Hash, Phone, CreditCard, ChevronRight } from "lucide-react";
+import { Store, MapPin, Hash, Phone, CreditCard, ChevronRight, Image as ImageIcon, Loader2, Camera } from "lucide-react";
+import { uploadToImageKit } from "@/lib/imagekit";
 
 const RestaurantDetails = () => {
   const { user, userProfile } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   
   const [formData, setFormData] = useState({
     restaurantName: "",
@@ -18,6 +20,7 @@ const RestaurantDetails = () => {
     pincode: "",
     phone: "",
     gstNo: "",
+    restaurantImage: "",
   });
 
   useEffect(() => {
@@ -47,6 +50,27 @@ const RestaurantDetails = () => {
     }
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const toastId = toast.loading("Uploading business visual...");
+    try {
+      const url = await uploadToImageKit(file, "/restaurants");
+      if (url) {
+        setFormData(prev => ({ ...prev, restaurantImage: url }));
+        toast.success("Business identity visualized", { id: toastId });
+      } else {
+        toast.error("Upload failed", { id: toastId });
+      }
+    } catch (err) {
+      toast.error("Process interrupt: File upload failed", { id: toastId });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0F172A] px-4 py-12 relative overflow-hidden">
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 rounded-full blur-[120px] pointer-events-none"></div>
@@ -60,6 +84,43 @@ const RestaurantDetails = () => {
               <h1 className="font-display font-bold text-2xl text-white">Restaurant Details</h1>
               <p className="text-slate-400 text-sm">Please provide your business information</p>
             </div>
+          </div>
+
+          {/* Restaurant Image Upload */}
+          <div className="flex flex-col items-center justify-center space-y-4 mb-8">
+            <div className="relative group w-full">
+              <div className="h-40 w-full rounded-2xl bg-slate-800/50 border-2 border-dashed border-slate-700 flex items-center justify-center overflow-hidden transition-all group-hover:border-primary/40 relative">
+                {formData.restaurantImage ? (
+                  <img src={formData.restaurantImage} alt="Preview" className="h-full w-full object-cover animate-in fade-in duration-500" />
+                ) : (
+                  <div className="flex flex-col items-center gap-3 text-slate-500">
+                    <ImageIcon className="h-10 w-10 opacity-20" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Business Storefront Image</span>
+                  </div>
+                )}
+                {isUploading && (
+                  <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px] flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                  </div>
+                )}
+                
+                <input 
+                  type="file" 
+                  id="restaurant-image-upload" 
+                  accept="image/*" 
+                  onChange={handleFileChange} 
+                  className="hidden" 
+                  disabled={isUploading} 
+                />
+                <label 
+                  htmlFor="restaurant-image-upload"
+                  className="absolute bottom-4 right-4 h-12 w-12 rounded-xl bg-primary text-primary-foreground flex items-center justify-center cursor-pointer shadow-xl hover:scale-110 active:scale-95 transition-all z-20"
+                >
+                  <Camera className="h-5 w-5" />
+                </label>
+              </div>
+            </div>
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] italic">Visual Deployment Protocol</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">

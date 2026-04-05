@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import Header from "@/components/layout/Header";
-import { User, Mail, Calendar, Shield, BadgeCheck, LogOut, ArrowLeft, ClipboardList, ChevronRight, Edit3, Save, X, Phone, Store, Loader2, Sparkles } from "lucide-react";
+import { User, Mail, Calendar, Shield, BadgeCheck, LogOut, ArrowLeft, ClipboardList, ChevronRight, Edit3, Save, X, Phone, Store, Loader2, Sparkles, Camera, CheckCircle2 } from "lucide-react";
+import { uploadToImageKit } from "@/lib/imagekit";
 import { Link } from "react-router-dom";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
@@ -14,11 +15,14 @@ const Profile = () => {
   const [editedContact, setEditedContact] = useState("");
   const [restaurantName, setRestaurantName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [editedPhotoURL, setEditedPhotoURL] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (userProfile) {
       setEditedName(userProfile.displayName || "");
       setEditedContact(userProfile.contact || "");
+      setEditedPhotoURL(userProfile.photoURL || "");
       
       if (userProfile.role === "restaurant_owner") {
         fetchRestaurant();
@@ -43,6 +47,7 @@ const Profile = () => {
       await updateDoc(doc(db, "users", userProfile.uid), {
         displayName: editedName,
         contact: editedContact,
+        photoURL: editedPhotoURL || null,
         updatedAt: Date.now(),
       });
       toast.success("Identity updated successfully!");
@@ -51,6 +56,37 @@ const Profile = () => {
       toast.error("Failed to sync changes");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const toastId = toast.loading("Uploading identity visual...");
+    try {
+      const url = await uploadToImageKit(file, "/profiles");
+      if (url) {
+        setEditedPhotoURL(url);
+        toast.success("Identity core synchronized", { id: toastId });
+        
+        // Auto-update Firestore if NOT in full edit mode, or just let user save?
+        // Let's just let user press "Save Protocol" for consistency, unless we want instant update.
+        // Actually, many apps do instant update for profile pic.
+        if (!isEditing) {
+           await updateDoc(doc(db, "users", userProfile!.uid), {
+             photoURL: url,
+             updatedAt: Date.now(),
+           });
+        }
+      } else {
+        toast.error("Upload failed", { id: toastId });
+      }
+    } catch (err) {
+      toast.error("Process interrupt: File upload failed", { id: toastId });
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -91,14 +127,39 @@ const Profile = () => {
           
           <div className="px-8 pb-10">
             <div className="relative flex flex-col sm:flex-row items-center sm:items-end gap-6 -mt-16 mb-10">
-              <div className="h-32 w-32 rounded-[2.5rem] bg-background p-1 border-8 border-card shadow-premium overflow-hidden group">
-                {userProfile.photoURL ? (
-                  <img src={userProfile.photoURL} alt="User" className="h-full w-full object-cover rounded-[1.8rem]" />
+              <div className="h-32 w-32 rounded-[2.5rem] bg-background p-1 border-8 border-card shadow-premium overflow-hidden group relative">
+                {(isEditing ? editedPhotoURL : userProfile.photoURL) ? (
+                  <img src={isEditing ? editedPhotoURL : userProfile.photoURL || ""} alt="User" className="h-full w-full object-cover rounded-[1.8rem]" />
                 ) : (
                   <div className="h-full w-full bg-gradient-hero flex items-center justify-center text-4xl font-display font-black text-white uppercase rounded-[1.8rem]">
                     {userProfile.displayName ? userProfile.displayName[0] : (userProfile.email ? userProfile.email[0] : "U")}
                   </div>
                 )}
+                
+                <input 
+                  type="file" 
+                  id="profile-pic-upload" 
+                  accept="image/*" 
+                  onChange={handleFileChange} 
+                  className="hidden" 
+                  disabled={isUploading} 
+                />
+                
+                <label 
+                  htmlFor="profile-pic-upload"
+                  className={`absolute inset-0 bg-black/40 backdrop-blur-[2px] flex flex-col items-center justify-center transition-opacity cursor-pointer ${
+                    isUploading ? 'opacity-100' : 'opacity-0 hover:opacity-100'
+                  }`}
+                >
+                  {isUploading ? (
+                    <Loader2 className="h-8 w-8 text-white animate-spin" />
+                  ) : (
+                    <>
+                      <Camera className="h-8 w-8 text-white mb-2" />
+                      <span className="text-[8px] font-black text-white uppercase tracking-widest">Update Visual</span>
+                    </>
+                  )}
+                </label>
               </div>
               
               <div className="flex-1 text-center sm:text-left pt-4 sm:pt-0">

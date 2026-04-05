@@ -24,6 +24,8 @@ const DeliveryDashboard = () => {
   const [pincodeInput, setPincodeInput] = useState("");
   const [settingUp, setSettingUp] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [activeDelivery, setActiveDelivery] = useState<any>(null);
+  const [mapObj, setMapObj] = useState<any>(null);
 
   useEffect(() => {
     if (!userProfile?.uid || !userProfile?.pincode) {
@@ -79,6 +81,92 @@ const DeliveryDashboard = () => {
       unsubHistory();
     };
   }, [userProfile?.uid, userProfile?.pincode]);
+
+  // Real-time position broadcasting
+  useEffect(() => {
+    const active = myOrders.find((o: any) => ["picked", "on-way"].includes(o.deliveryStatus));
+    setActiveDelivery(active);
+    
+    if (!active || !userProfile?.uid) return;
+
+    const broadcastLocation = () => {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          try {
+            await updateDoc(doc(db, "orders", active.id), {
+              deliveryPartnerLat: latitude,
+              deliveryPartnerLng: longitude,
+              lastLocationUpdate: serverTimestamp()
+            });
+          } catch (err) {
+            console.error("COORD_BROADCAST_FAILURE", err);
+          }
+        },
+        null,
+        { enableHighAccuracy: true }
+      );
+    };
+
+    const intervalId = setInterval(broadcastLocation, 5000);
+    broadcastLocation(); // Initial broadcast
+
+    return () => clearInterval(intervalId);
+  }, [myOrders, userProfile?.uid]);
+
+  // Map Initialization
+  useEffect(() => {
+    if (activeDelivery && activeDelivery.destLat && !mapObj) {
+      const initMap = async () => {
+        try {
+          const { loadMapplsSDK } = await import("@/lib/mappls");
+          const token = await loadMapplsSDK();
+          
+          if (typeof (window as any).mappls === 'undefined') {
+             setTimeout(initMap, 500); 
+             return;
+          }
+
+          const mapContainer = document.getElementById("logistics-map");
+          if (!mapContainer) return;
+
+          const map = new (window as any).mappls.Map("logistics-map", {
+            center: [activeDelivery.destLat, activeDelivery.destLng],
+            zoom: 15,
+            token: token
+          });
+
+          setMapObj(map);
+        } catch (err) {
+          console.error("LOGISTICS_MAP_UPLINK_FAILURE", err);
+        }
+      };
+      initMap();
+    }
+  }, [activeDelivery, mapObj]);
+
+  // Route Rendering
+  useEffect(() => {
+    if (mapObj && activeDelivery && activeDelivery.deliveryPartnerLat) {
+      if (typeof (window as any).mappls.direction !== 'function') {
+        console.warn("DIRECTION_ENGINE_AWAITING_INITIALIZATION");
+        return;
+      }
+      
+      const p1 = `${activeDelivery.deliveryPartnerLat},${activeDelivery.deliveryPartnerLng}`;
+      const p2 = `${activeDelivery.destLat},${activeDelivery.destLng}`;
+      
+      (window as any).mappls.direction({
+        map: mapObj,
+        start: p1,
+        end: p2,
+        callback: (res: any) => {
+           console.log("Vector trace complete", res);
+        }
+      });
+    }
+  }, [mapObj, activeDelivery?.deliveryPartnerLat]);
 
   const handlePincodeSetup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -279,6 +367,15 @@ const DeliveryDashboard = () => {
               )}
               {myOrders.map(order => (
                 <div key={order.id} className="p-10 rounded-[3.5rem] glass-card border border-indigo-500/20 shadow-premium relative group overflow-hidden bg-indigo-500/5">
+                   {/* Logistics Map HUD */}
+                   {["picked", "on-way"].includes(order.deliveryStatus) && (
+                     <div id="logistics-map" className="h-64 w-full rounded-[2.5rem] mb-8 bg-slate-900 overflow-hidden border border-indigo-500/10 shadow-inner relative z-10 transition-all duration-700 animate-in zoom-in">
+                        <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black uppercase tracking-widest text-indigo-500/40 pointer-events-none">
+                           Synchronizing HUD Vector...
+                        </div>
+                     </div>
+                   )}
+                   
                    <div className="flex items-start justify-between mb-8 relative z-10">
                       <div>
                          <h4 className="font-display font-black text-2xl text-foreground uppercase italic tracking-tighter">{order.restaurantName}</h4>

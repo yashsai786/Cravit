@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, MapPin, CreditCard, Banknote, Smartphone, Check, Home, Briefcase, Building2, Loader2, Plus, Info, X } from "lucide-react";
+import { ArrowLeft, MapPin, CreditCard, Banknote, Smartphone, Check, Home, Briefcase, Building2, Loader2, Plus, Info, X, Navigation, CheckCircle2 } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import Header from "@/components/layout/Header";
@@ -29,7 +29,9 @@ const CheckoutPage = () => {
     landmark: "",
     pincode: "",
     full: "",
-    type: "home"
+    type: "home",
+    lat: null as number | null,
+    lng: null as number | null,
   });
 
   useEffect(() => {
@@ -52,6 +54,7 @@ const CheckoutPage = () => {
     e.preventDefault();
     if (!user) return;
     if (formData.pincode.length !== 6) { toast.error("Enter a valid 6-digit pincode"); return; }
+    if (!formData.lat) { toast.error("Coordinate capture mandatory for logistics protocol."); return; }
 
     try {
       const docRef = await addDoc(collection(db, "address"), {
@@ -62,10 +65,33 @@ const CheckoutPage = () => {
       toast.success("Address saved!");
       setSelectedAddress(docRef.id);
       setShowAddressForm(false);
-      setFormData({ city: "", landmark: "", pincode: "", full: "", type: "home" });
+      setFormData({ city: "", landmark: "", pincode: "", full: "", type: "home", lat: null, lng: null });
     } catch (error) {
       toast.error("Failed to save address");
     }
+  };
+
+  const captureCoordinates = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation protocol inactive in this terminal.");
+      return;
+    }
+
+    const toastId = toast.loading("Triangulating exact coordinates...");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setFormData(prev => ({
+          ...prev,
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude
+        }));
+        toast.success("Grid coordinates synchronized! 🛰️", { id: toastId });
+      },
+      (err) => {
+        toast.error("Triangulation failure. Please enable sensor access.", { id: toastId });
+      },
+      { enableHighAccuracy: true }
+    );
   };
 
   if (!isAuthenticated) { navigate("/login"); return null; }
@@ -131,17 +157,25 @@ const CheckoutPage = () => {
                        <input type="text" required value={formData.landmark} onChange={(e) => setFormData({...formData, landmark: e.target.value})}
                         className="w-full h-12 px-5 rounded-2xl bg-foreground/5 border border-foreground/5 text-foreground text-sm font-black italic focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all" />
                     </div>
-                    <div className="flex flex-wrap gap-4">
-                       {addressTypes.map((t) => (
-                         <button key={t.id} type="button" onClick={() => setFormData({...formData, type: t.id})}
-                           className={`flex items-center gap-2 px-6 h-11 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${formData.type === t.id ? 'bg-primary text-white border-primary shadow-xl shadow-primary/20' : 'glass border-foreground/5 text-muted-foreground hover:border-foreground/20'}`}>
-                           <t.icon className="h-4 w-4" /> {t.label}
-                         </button>
-                       ))}
-                    </div>
-                    <button type="submit" className="w-full h-14 rounded-2xl bg-primary text-white font-display font-black text-[10px] uppercase tracking-[0.3em] shadow-xl shadow-primary/30 hover:scale-[1.01] active:shadow-inner transition-all">
-                       Capture Coordinate
-                    </button>
+                     <button type="button" onClick={captureCoordinates}
+                        className={`w-full h-14 rounded-2xl border-2 border-dashed flex items-center justify-center gap-4 transition-all ${formData.lat ? 'border-emerald-500/40 bg-emerald-500/5 text-emerald-500' : 'border-foreground/10 bg-foreground/5 text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-primary'}`}>
+                        {formData.lat ? <CheckCircle2 className="h-5 w-5" /> : <Navigation className="h-5 w-5" />}
+                        <span className="text-[10px] font-black uppercase tracking-[0.3em]">
+                           {formData.lat ? `SECURE VECTOR: ${formData.lat.toFixed(4)}, ${formData.lng?.toFixed(4)}` : "Pin Precise Terminal Coordinates"}
+                        </span>
+                     </button>
+
+                     <div className="flex flex-wrap gap-4">
+                        {addressTypes.map((t) => (
+                          <button key={t.id} type="button" onClick={() => setFormData({...formData, type: t.id})}
+                            className={`flex items-center gap-2 px-6 h-11 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${formData.type === t.id ? 'bg-primary text-white border-primary shadow-xl shadow-primary/20' : 'glass border-foreground/5 text-muted-foreground hover:border-foreground/20'}`}>
+                            <t.icon className="h-4 w-4" /> {t.label}
+                          </button>
+                        ))}
+                     </div>
+                     <button type="submit" className="w-full h-14 rounded-2xl bg-primary text-white font-display font-black text-[10px] uppercase tracking-[0.3em] shadow-xl shadow-primary/30 hover:scale-[1.01] active:shadow-inner transition-all">
+                        Capture Coordinate
+                     </button>
                  </form>
                ) : (
                  <div className="space-y-6 relative z-10">
@@ -201,13 +235,17 @@ const CheckoutPage = () => {
                      <p className="text-4xl font-display font-black text-primary tracking-tighter italic">₹{total}</p>
                   </div>
                   <button 
-                    disabled={!selectedAddress}
-                    onClick={() => navigate("/payment", { 
-                      state: { 
-                        addressId: selectedAddress,
-                        addressFull: addresses.find(a => a.id === selectedAddress)?.full + ", " + addresses.find(a => a.id === selectedAddress)?.landmark
-                      } 
-                    })}
+                    onClick={() => {
+                      const sel = addresses.find(a => a.id === selectedAddress);
+                      navigate("/payment", { 
+                        state: { 
+                          addressId: selectedAddress,
+                          addressFull: sel?.full + ", " + sel?.landmark,
+                          lat: sel?.lat,
+                          lng: sel?.lng
+                        } 
+                      });
+                    }}
                     className="h-16 px-12 rounded-[2rem] bg-gradient-hero text-white font-display font-black text-[10px] uppercase tracking-[0.3em] shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:grayscale"
                   >
                     Authorize Dispatch

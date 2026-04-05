@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Eye, EyeOff, Mail, Lock, User, UserPlus, Store, Bike, Smartphone } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, UserPlus, Store, Bike, Smartphone, Camera, Loader2, CheckCircle2 } from "lucide-react";
+import { uploadToImageKit } from "@/lib/imagekit";
 
 const RegisterPage = () => {
   const [name, setName] = useState("");
@@ -12,6 +13,8 @@ const RegisterPage = () => {
   const [role, setRole] = useState<UserRole>("customer");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [photoURL, setPhotoURL] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
   const { signUp, signInWithGoogle, userProfile } = useAuth();
   const navigate = useNavigate();
 
@@ -35,7 +38,7 @@ const RegisterPage = () => {
     }
     
     setLoading(true);
-    const success = await signUp(email, password, name, contact, role);
+    const success = await signUp(email, password, name, contact, role, photoURL);
     setLoading(false);
     
     if (success) {
@@ -54,6 +57,27 @@ const RegisterPage = () => {
       toast.error("Failed to sign up with Google");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const toastId = toast.loading("Uploading profile signature...");
+    try {
+      const url = await uploadToImageKit(file, "/profiles");
+      if (url) {
+        setPhotoURL(url);
+        toast.success("Profile visualized in cloud registry", { id: toastId });
+      } else {
+        toast.error("Upload failed", { id: toastId });
+      }
+    } catch (err) {
+      toast.error("Process interrupt: File upload failed", { id: toastId });
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -101,6 +125,39 @@ const RegisterPage = () => {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Profile Pic Upload */}
+            <div className="flex flex-col items-center justify-center space-y-4 mb-4 animate-in slide-in-from-top-4 duration-700">
+              <div className="relative group">
+                <div className="h-24 w-24 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center overflow-hidden shadow-xl shadow-black/20 group-hover:border-primary/50 transition-all">
+                  {photoURL ? (
+                    <img src={photoURL} alt="Preview" className="h-full w-full object-cover animate-in fade-in zoom-in duration-500" />
+                  ) : (
+                    <User className="h-10 w-10 text-slate-600 group-hover:text-primary/50 transition-colors" />
+                  )}
+                  {isUploading && (
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px] flex items-center justify-center">
+                      <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                    </div>
+                  )}
+                </div>
+                <input 
+                   type="file" 
+                   id="profile-upload" 
+                   accept="image/*" 
+                   onChange={handleFileChange} 
+                   className="hidden" 
+                   disabled={isUploading} 
+                />
+                <label 
+                   htmlFor="profile-upload" 
+                   className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center cursor-pointer shadow-lg hover:scale-110 active:scale-95 transition-all"
+                >
+                   <Camera className="h-4 w-4" />
+                </label>
+              </div>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic tracking-tighter">Identity Core Visual</p>
             </div>
 
             <div className="space-y-1.5">

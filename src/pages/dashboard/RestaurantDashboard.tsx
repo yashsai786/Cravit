@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ClipboardList, UtensilsCrossed, Star, TrendingUp, Plus, Edit, Trash2, Check, X, Image as ImageIcon, Sparkles, Clock, MapPin, Phone, ReceiptText, ChefHat, CheckCircle2, ChevronRight, PackageCheck, User, Store, Hash, CreditCard, Save, Loader2 } from "lucide-react";
+import { ClipboardList, UtensilsCrossed, Star, TrendingUp, Plus, Edit, Trash2, Check, X, Image as ImageIcon, Sparkles, Clock, MapPin, Phone, ReceiptText, ChefHat, CheckCircle2, ChevronRight, PackageCheck, User, Store, Hash, CreditCard, Save, Loader2, Camera } from "lucide-react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, query, where, onSnapshot, doc, deleteDoc, updateDoc, orderBy, getDocs, getDoc } from "firebase/firestore";
 import { toast } from "sonner";
+import { uploadToImageKit } from "@/lib/imagekit";
 
 const navItems = [
   { label: "Orders", path: "/dashboard/restaurant", icon: <ClipboardList className="h-4 w-4" /> },
@@ -121,8 +122,9 @@ const RestaurantDashboard = () => {
   const [items, setItems] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<"current" | "past">("current");
-  const [restaurantProfile, setRestaurantProfile] = useState<any>(null);
-  const [profileLoading, setProfileLoading] = useState(false);
+   const [restaurantProfile, setRestaurantProfile] = useState<any>(null);
+   const [profileLoading, setProfileLoading] = useState(false);
+   const [isUploading, setIsUploading] = useState(false);
   
   const [formData, setFormData] = useState({
     name: "",
@@ -207,6 +209,7 @@ const RestaurantDashboard = () => {
         fssaiId: restaurantProfile.fssaiId,
         gstNo: restaurantProfile.gstNo,
         pincode: restaurantProfile.pincode,
+        restaurantImage: restaurantProfile.restaurantImage || null,
       });
       toast.success("Business Identity Updated! 🚀");
     } catch (error) {
@@ -221,6 +224,10 @@ const RestaurantDashboard = () => {
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userProfile) return;
+    if (!formData.image) {
+      toast.error("Please provide a visual asset for the inventory protocol.");
+      return;
+    }
     try {
       await addDoc(collection(db, "items"), {
         ...formData,
@@ -235,6 +242,32 @@ const RestaurantDashboard = () => {
       setFormData({ name: "", description: "", image: "", price: "", category: "Quick Bites", isVeg: true, isJain: false, isRegular: true });
     } catch (error) {
       toast.error("Failed to add item");
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const isMenuUpload = e.target.id === "item-image-upload";
+    if (!file) return;
+
+    setIsUploading(true);
+    const toastId = toast.loading(isMenuUpload ? "Uploading visual asset..." : "Uploading business identity...");
+    try {
+      const url = await uploadToImageKit(file, isMenuUpload ? "/menu_items" : "/restaurants");
+      if (url) {
+        if (isMenuUpload) {
+          setFormData(prev => ({ ...prev, image: url }));
+        } else {
+          setRestaurantProfile((prev: any) => ({ ...prev, restaurantImage: url }));
+        }
+        toast.success("Asset synchronized with cloud storage", { id: toastId });
+      } else {
+        toast.error("Cloud synchronization failed", { id: toastId });
+      }
+    } catch (err) {
+      toast.error("Process interrupt: File upload failed", { id: toastId });
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -297,6 +330,41 @@ const RestaurantDashboard = () => {
                    <Store className="h-64 w-64 text-primary" />
                 </div>
                 
+                 <div className="flex flex-col items-center justify-center space-y-4 mb-10 relative z-10 animate-in slide-in-from-top-6 duration-700">
+                    <div className="relative group">
+                       <div className="h-40 w-80 rounded-[2.5rem] bg-foreground/5 border-2 border-dashed border-foreground/10 flex items-center justify-center overflow-hidden transition-all group-hover:border-primary/40 relative shadow-inner">
+                          {restaurantProfile.restaurantImage ? (
+                             <img src={restaurantProfile.restaurantImage} alt="Restaurant" className="h-full w-full object-cover animate-in fade-in duration-500" />
+                          ) : (
+                             <div className="flex flex-col items-center gap-3 text-muted-foreground opacity-40">
+                                <ImageIcon className="h-10 w-10" />
+                                <span className="text-[10px] font-black uppercase tracking-widest italic">Business Visual Deployment</span>
+                             </div>
+                          )}
+                          {isUploading && (
+                             <div className="absolute inset-0 bg-background/60 backdrop-blur-[2px] flex items-center justify-center">
+                                <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                             </div>
+                          )}
+                          <input 
+                            type="file" 
+                            id="restaurant-image-update" 
+                            accept="image/*" 
+                            onChange={handleFileChange} 
+                            className="hidden" 
+                            disabled={isUploading} 
+                          />
+                          <label 
+                            htmlFor="restaurant-image-update"
+                            className="absolute bottom-4 right-4 h-12 w-12 rounded-xl bg-primary text-white flex items-center justify-center cursor-pointer shadow-xl hover:scale-110 active:scale-95 transition-all z-20"
+                          >
+                            <Camera className="h-5 w-5" />
+                          </label>
+                       </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.3em] opacity-60">Storefront Identity Visual</p>
+                 </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10 relative z-10">
                   <div className="space-y-3">
                     <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Establishment Identity</label>
@@ -460,10 +528,45 @@ const RestaurantDashboard = () => {
 
                 <div className="space-y-8 flex flex-col">
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Visual Asset Endpoint</label>
-                    <input type="url" required value={formData.image} onChange={(e) => setFormData({...formData, image: e.target.value})}
-                      className="w-full h-14 px-6 rounded-2xl bg-foreground/5 border border-foreground/5 text-muted-foreground font-mono font-black text-[10px] focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all shadow-inner"
-                      placeholder="https://cloud.store/image1.jpg" />
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Visual Asset Upload</label>
+                    <div className="relative group">
+                       <input 
+                         type="file" 
+                         accept="image/*" 
+                         onChange={handleFileChange}
+                         disabled={isUploading}
+                         className="hidden" 
+                         id="item-image-upload" 
+                       />
+                       <label 
+                         htmlFor="item-image-upload"
+                         className={`w-full h-24 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
+                           formData.image ? 'border-primary/40 bg-primary/5' : 'border-foreground/10 bg-foreground/5 hover:border-primary/40 hover:bg-primary/5'
+                         }`}
+                       >
+                         {isUploading ? (
+                           <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                         ) : formData.image ? (
+                           <>
+                             <div className="flex items-center gap-2 text-primary">
+                               <CheckCircle2 className="h-5 w-5" />
+                               <span className="text-[10px] font-black uppercase tracking-widest">Asset Ready</span>
+                             </div>
+                             <img src={formData.image} alt="Preview" className="h-10 w-10 object-cover rounded-lg" />
+                           </>
+                         ) : (
+                           <>
+                             <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                             <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Select Visual Data</span>
+                           </>
+                         )}
+                       </label>
+                       {formData.image && (
+                         <div className="mt-2 text-[8px] font-black text-primary uppercase tracking-tighter truncate opacity-60">
+                           {formData.image}
+                         </div>
+                       )}
+                    </div>
                   </div>
                   <div className="p-8 rounded-[2.5rem] bg-foreground/5 border border-foreground/5 space-y-6 shadow-inner">
                     <div className="flex items-center justify-between">
