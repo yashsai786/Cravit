@@ -11,8 +11,8 @@ export const loadMapplsSDK = (): Promise<string> => {
 
   scriptLoadingPromise = (async () => {
     try {
-      // Step 1: Force Generate Access Token (OAuth)
-      const authResponse = await fetch("https://outpost.mapmyindia.com/api/security/oauth/token", {
+      // Step 1: Force Generate Access Token (OAuth) via Proxy
+      const authResponse = await fetch("/mappls-auth/api/security/oauth/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({

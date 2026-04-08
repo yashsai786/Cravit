@@ -7,7 +7,8 @@ import { useCart } from "@/contexts/CartContext";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
 
-const statusSteps = ["placed", "accepted", "preparing", "picked", "delivered"];
+const foodSteps = ["placed", "accepted", "preparing", "picked", "delivered"];
+const instamartSteps = ["ordered", "packed", "picked", "delivered"];
 
 const OrderDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -73,8 +74,9 @@ const OrderDetailPage = () => {
     }
   };
 
+  const statusSteps = order.orderType === "instamart" ? instamartSteps : foodSteps;
   const currentStep = order.orderStatus === "cancelled" ? -1 : statusSteps.indexOf(order.orderStatus);
-  const isCancellable = ["placed", "accepted"].includes(order.orderStatus);
+  const isCancellable = ["placed", "ordered"].includes(order.orderStatus);
 
   return (
     <div className="min-h-screen bg-[#0F172A] text-white">

@@ -31,7 +31,7 @@ export const RoleGuard: React.FC<RoleGuardProps> = ({ children, requiredRole, re
             navigate("/delivery");
             break;
           case "insta_handler":
-            navigate("/insta-handler");
+            navigate("/dashboard/instamart");
             break;
           case "customer":
           default:

@@ -15,7 +15,7 @@ const addressTypes = [
 ];
 
 const CheckoutPage = () => {
-  const { items, subtotal, deliveryFee, tax, discount, total } = useCart();
+  const { currentItems, subtotal, deliveryFee, tax, discount, total } = useCart();
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   
@@ -95,7 +95,7 @@ const CheckoutPage = () => {
   };
 
   if (!isAuthenticated) { navigate("/login"); return null; }
-  if (items.length === 0) { navigate("/cart"); return null; }
+  if (currentItems.length === 0) { navigate("/cart"); return null; }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -219,7 +219,7 @@ const CheckoutPage = () => {
             <section className="p-10 rounded-[3.5rem] glass-card border border-foreground/5 shadow-premium mt-10">
                <h3 className="font-display font-black text-[10px] uppercase tracking-[0.3em] text-muted-foreground mb-8 underline decoration-primary/20">Payload Sequence Summary</h3>
                <div className="space-y-4 mb-10">
-                  {items.map((item) => (
+                  {currentItems.map((item) => (
                     <div key={item.id} className="flex justify-between items-center group">
                       <div className="flex flex-col">
                         <span className="text-foreground font-black text-sm italic uppercase tracking-tighter">{item.name}</span>

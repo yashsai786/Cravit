@@ -9,12 +9,15 @@ import { toast } from "sonner";
 
 const CartPage = () => {
   const {
-    items, updateQuantity, removeItem, clearCart,
+    foodItems, instamartItems, updateQuantity, removeItem, clearCart,
     appliedCoupon, applyCoupon, removeCoupon,
-    subtotal, deliveryFee, tax, discount, total, loading
+    subtotal, deliveryFee, tax, discount, total, loading,
+    activeCartType, setActiveCartType, foodCount, instamartCount
   } = useCart();
   const { isAuthenticated, userProfile } = useAuth();
   const [couponInput, setCouponInput] = useState("");
+
+  const items = activeCartType === 'food' ? foodItems : instamartItems;
 
   const handleApplyCoupon = () => {
     const c = coupons.find((cp) => cp.code === couponInput.toUpperCase());
@@ -37,40 +40,74 @@ const CartPage = () => {
     );
   }
 
-  if (items.length === 0) {
-    return (
-      <div className="min-h-screen bg-[#0F172A]">
-        <Header />
-        <div className="container max-w-md py-20 text-center animate-in zoom-in duration-500">
-          <div className="h-24 w-24 bg-slate-900 rounded-[2rem] border border-slate-800 flex items-center justify-center mx-auto mb-6 shadow-2xl">
-             <ShoppingBag className="h-10 w-10 text-slate-600" />
-          </div>
-          <h2 className="font-display font-bold text-2xl text-white uppercase tracking-tighter">Cart is Empty</h2>
-          <p className="text-sm text-slate-500 mt-2">Add some delicious items to get started!</p>
-          <Link to="/" className="inline-flex mt-8 bg-primary text-white font-display font-black text-xs uppercase tracking-widest px-8 py-3 rounded-2xl shadow-xl shadow-primary/20 hover:opacity-90 active:scale-95 transition-all">
-            Browse Restaurants
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-[#0F172A]">
       <Header />
       <main className="w-full max-w-[800px] mx-auto pb-20 px-6">
-        <div className="flex items-center gap-4 pt-8 pb-6">
+        {/* Toggle Section */}
+        <div className="pt-8 pb-4">
+           <div className="bg-slate-900/80 border border-slate-800/60 p-1.5 rounded-[2rem] flex items-center relative shadow-2xl overflow-hidden backdrop-blur-2xl">
+              <div 
+                className={`absolute top-1.5 bottom-1.5 rounded-[1.7rem] bg-gradient-to-r transition-all duration-500 ease-out z-0 h-[calc(100%-12px)]`}
+                style={{ 
+                  left: activeCartType === 'food' ? '6px' : 'calc(50% + 1px)', 
+                  width: 'calc(50% - 7px)',
+                  background: activeCartType === 'food' ? 'linear-gradient(to right, #6366f1, #4f46e5)' : 'linear-gradient(to right, #10b981, #059669)'
+                }}
+              />
+              <button 
+                onClick={() => setActiveCartType('food')}
+                className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl relative z-10 transition-colors duration-500 font-display font-black text-[10px] uppercase tracking-[0.3em] ${activeCartType === 'food' ? 'text-white' : 'text-slate-500 hover:text-slate-400'}`}
+              >
+                 <ShoppingBag className={`h-4 w-4 transition-transform duration-500 ${activeCartType === 'food' ? 'scale-110' : 'scale-100 opacity-50'}`} />
+                 FOOD ({foodCount})
+              </button>
+              <button 
+                onClick={() => setActiveCartType('instamart')}
+                className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl relative z-10 transition-colors duration-500 font-display font-black text-[10px] uppercase tracking-[0.3em] ${activeCartType === 'instamart' ? 'text-white' : 'text-slate-500 hover:text-slate-400'}`}
+              >
+                 <Sparkles className={`h-4 w-4 transition-transform duration-500 ${activeCartType === 'instamart' ? 'scale-110' : 'scale-100 opacity-50'}`} />
+                 GROCERY ({instamartCount})
+              </button>
+           </div>
+        </div>
+
+        <div className="flex items-center gap-4 py-6">
           <Link to="/" className="h-10 w-10 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-white hover:border-primary/20 transition-all">
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div>
-             <h1 className="font-display font-black text-2xl text-white tracking-tight uppercase italic">Your Cart</h1>
-             <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">{items.length} items from {items[0].restaurantName}</p>
+             <h1 className="font-display font-black text-2xl text-white tracking-tight uppercase italic">
+                {activeCartType === 'food' ? 'Culinary Cart' : 'Grocery Cart'}
+             </h1>
+             <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+                {items.length} {items.length === 1 ? 'item' : 'items'} identified
+             </p>
           </div>
-          <button onClick={clearCart} className="ml-auto text-[10px] font-black text-rose-500 uppercase tracking-widest bg-rose-500/10 px-3 py-1.5 rounded-lg border border-rose-500/20 hover:bg-rose-500 hover:text-white transition-all">
-            Clear Cart
-          </button>
+          {items.length > 0 && (
+            <button onClick={() => clearCart(activeCartType)} className="ml-auto text-[10px] font-black text-rose-500 uppercase tracking-widest bg-rose-500/10 px-3 py-1.5 rounded-lg border border-rose-500/20 hover:bg-rose-500 hover:text-white transition-all">
+              Clear {activeCartType === 'food' ? 'Food' : 'Instamart'}
+            </button>
+          )}
         </div>
+
+        {items.length === 0 ? (
+          <div className="container max-w-md py-20 text-center animate-in zoom-in duration-500">
+            <div className="h-24 w-24 bg-slate-900 rounded-[2rem] border border-slate-800 flex items-center justify-center mx-auto mb-6 shadow-2xl">
+               {activeCartType === 'food' ? <ShoppingBag className="h-10 w-10 text-slate-600" /> : <Sparkles className="h-10 w-10 text-slate-600" />}
+            </div>
+            <h2 className="font-display font-bold text-2xl text-white uppercase tracking-tighter">
+               {activeCartType === 'food' ? 'Food Cart Empty' : 'Instamart Empty'}
+            </h2>
+            <p className="text-sm text-slate-500 mt-2">
+               {activeCartType === 'food' ? 'Add some delicious items to get started!' : 'Add some essentials to your pantry!'}
+            </p>
+            <Link to={activeCartType === 'food' ? "/" : "/instamart"} className={`inline-flex mt-8 ${activeCartType === 'food' ? 'bg-primary' : 'bg-accent'} text-white font-display font-black text-xs uppercase tracking-widest px-8 py-3 rounded-2xl shadow-xl transition-all hover:scale-105 active:scale-95`}>
+              {activeCartType === 'food' ? 'Browse Food' : 'Shop Groceries'}
+            </Link>
+          </div>
+        ) : (
+          <>
 
         {!isAuthenticated && (
           <div className="mb-8 p-5 rounded-3xl bg-amber-500/10 border border-amber-500/20 animate-in slide-in-from-top-4 duration-500">
@@ -224,6 +261,8 @@ const CartPage = () => {
           )}
           <p className="text-center text-[10px] text-slate-600 font-bold uppercase tracking-widest mt-6 italic">Secure TLS Checkout Enabled</p>
         </div>
+        </>
+        )}
       </main>
     </div>
   );

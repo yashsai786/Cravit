@@ -15,7 +15,7 @@ const paymentMethods = [
 ];
 
 const PaymentPage = () => {
-  const { total, clearCart, items, subtotal, deliveryFee, tax, discount } = useCart();
+  const { total, clearCart, currentItems: items, subtotal, deliveryFee, tax, discount } = useCart();
   const { user, userProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -103,7 +103,30 @@ const PaymentPage = () => {
         }
       }
 
+      // 0. Preliminary Stock Validation for Instamart
+      const orderType = items[0]?.cartType || "food";
+
+      if (orderType === 'instamart') {
+        for (const item of items) {
+          const inventoryId = item.itemId || item.id;
+          const invDoc = await getDoc(doc(db, "instamart_inventory", inventoryId));
+          if (invDoc.exists()) {
+            const availableStock = Number(invDoc.data().stock || 0);
+            if (item.quantity > availableStock) {
+              toast.error(`Only ${availableStock} units available for ${item.name}. Please update cart.`);
+              setProcessing(false);
+              return;
+            }
+          } else {
+            toast.error(`${item.name} is no longer available.`);
+            setProcessing(false);
+            return;
+          }
+        }
+      }
+
       // 1. Create main order document
+      
       const orderData = {
         orderId: customOrderId,
         userId: user.uid,
@@ -120,9 +143,11 @@ const PaymentPage = () => {
         paymentMethod: selected.toUpperCase(),
         totalAmount: total,
         paymentStatus: selected === "cash" ? "pending" : "paid",
-        orderStatus: "placed",
-        kitchenStatus: "placed", // Independent Kitchen Track
-        deliveryStatus: "pending", // Independent Logistics Track
+        orderStatus: orderType === 'instamart' ? 'ordered' : 'placed',
+        orderType: orderType,
+        storeId: orderType === 'instamart' ? (items[0]?.restaurantId || "") : "",
+        kitchenStatus: orderType === 'instamart' ? 'received' : 'placed',
+        deliveryStatus: "pending", 
         timeOfOrder: serverTimestamp(),
         createdAt: serverTimestamp(),
       };
@@ -144,7 +169,9 @@ const PaymentPage = () => {
 
       await Promise.all(itemPromises);
       
-      // 3. Clear cart in Firestore
+      // 3. (Stock depletion moved to backend/Dashboard when order is accepted)
+      
+      // 4. Clear cart in Firestore
       await clearCart();
       
       toast.success("Order Placed Successfully! 🍽️");

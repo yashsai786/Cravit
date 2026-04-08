@@ -39,7 +39,7 @@ const DeliveryDashboard = () => {
       const allSectorOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       const unassigned = allSectorOrders.filter((o: any) => {
         // Broaden acceptance to include both modern and legacy status fields
-        const isKitchenActive = ["accepted", "preparing", "handed_over"].includes(o.kitchenStatus || o.orderStatus);
+        const isKitchenActive = ["accepted", "preparing", "handed_over", "packed", "ready"].includes(o.kitchenStatus || o.orderStatus);
         const isLogisticsPending = o.deliveryStatus === "pending" || !o.deliveryStatus;
         return isKitchenActive && isLogisticsPending && !o.deliveryPartnerId && o.orderStatus !== "cancelled";
       });

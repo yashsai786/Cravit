@@ -147,14 +147,14 @@ const RestaurantPage = () => {
              <div className="h-px bg-foreground/5 flex-1" />
           </div>
 
-          {(menuItems.filter((m) => (m.category === displayCategory) || (!m.category && displayCategory === "Main Course")).length === 0) && (
+          {(menuItems.filter((m) => ((m.category === displayCategory) || (!m.category && displayCategory === "Main Course")) && m.status !== "unavailable").length === 0) && (
              <div className="py-20 text-center rounded-[2.5rem] border border-foreground/5 border-dashed">
-                <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">No units identified in this sector</p>
+                <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">No active units identified in this sector</p>
              </div>
           )}
 
           {menuItems
-            .filter((m) => (m.category === displayCategory) || (!m.category && displayCategory === "Main Course"))
+            .filter((m) => ((m.category === displayCategory) || (!m.category && displayCategory === "Main Course")) && m.status !== "unavailable")
             .map((item, i) => {
               const qty = getCartQty(item.id);
               const cartDocId = getCartDocId(item.id);

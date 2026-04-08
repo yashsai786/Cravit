@@ -11,6 +11,13 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    proxy: {
+      '/mappls-auth': {
+        target: 'https://outpost.mapmyindia.com',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/mappls-auth/, ''),
+      }
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

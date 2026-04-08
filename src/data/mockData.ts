@@ -151,15 +151,16 @@ export const restaurants: Restaurant[] = [
 ];
 
 export const instamartCategories = [
-  "Fruits & Vegetables", "Dairy & Bread", "Snacks", "Beverages",
-  "Cleaning", "Personal Care", "Baby Care", "Masala & Spices"
+  "All", "Fruits & Vegetables", "Dairy & Bread", "Snacks & Munchies", 
+  "Cold Drinks & Juices", "Cleaning Essentials", "Personal Care", 
+  "Baby Care", "Masala & Spices"
 ];
 
 export const instamartItems: InstamartItem[] = [
   { id: "i1", name: "Banana", category: "Fruits & Vegetables", price: 39, unit: "1 dozen", image: "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=200&h=200&fit=crop", inStock: true },
   { id: "i2", name: "Amul Milk", category: "Dairy & Bread", price: 29, unit: "500 ml", image: "https://images.unsplash.com/photo-1563636619-e9143da7973b?w=200&h=200&fit=crop", inStock: true },
-  { id: "i3", name: "Lays Classic", category: "Snacks", price: 20, originalPrice: 25, unit: "52g", image: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=200&h=200&fit=crop", inStock: true },
-  { id: "i4", name: "Coca Cola", category: "Beverages", price: 40, unit: "750 ml", image: "https://images.unsplash.com/photo-1554866585-cd94860890b7?w=200&h=200&fit=crop", inStock: true },
+  { id: "i3", name: "Lays Classic", category: "Snacks & Munchies", price: 20, originalPrice: 25, unit: "52g", image: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=200&h=200&fit=crop", inStock: true },
+  { id: "i4", name: "Coca Cola", category: "Cold Drinks & Juices", price: 40, unit: "750 ml", image: "https://images.unsplash.com/photo-1554866585-cd94860890b7?w=200&h=200&fit=crop", inStock: true },
   { id: "i5", name: "Tomato", category: "Fruits & Vegetables", price: 30, unit: "500g", image: "https://images.unsplash.com/photo-1546470427-0d4db154ceb8?w=200&h=200&fit=crop", inStock: true },
   { id: "i6", name: "Brown Bread", category: "Dairy & Bread", price: 45, unit: "400g", image: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop", inStock: false },
   { id: "i7", name: "Apple", category: "Fruits & Vegetables", price: 149, unit: "1 kg", image: "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=200&h=200&fit=crop", inStock: true },

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ClipboardList, UtensilsCrossed, Star, TrendingUp, Plus, Edit, Trash2, Check, X, Image as ImageIcon, Sparkles, Clock, MapPin, Phone, ReceiptText, ChefHat, CheckCircle2, ChevronRight, PackageCheck, User, Store, Hash, CreditCard, Save, Loader2, Camera } from "lucide-react";
+import { ClipboardList, UtensilsCrossed, Star, TrendingUp, Plus, Edit, Trash2, Check, X, Image as ImageIcon, Sparkles, Clock, MapPin, Phone, ReceiptText, ChefHat, CheckCircle2, ChevronRight, PackageCheck, User, Store, Hash, CreditCard, Save, Loader2, Camera, Boxes, AlertTriangle } from "lucide-react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
@@ -11,6 +11,7 @@ import { uploadToImageKit } from "@/lib/imagekit";
 const navItems = [
   { label: "Orders", path: "/dashboard/restaurant", icon: <ClipboardList className="h-4 w-4" /> },
   { label: "Menu", path: "/dashboard/restaurant/menu", icon: <UtensilsCrossed className="h-4 w-4" /> },
+  { label: "Inventory", path: "/dashboard/restaurant/inventory", icon: <Boxes className="h-4 w-4" /> },
   { label: "Profile", path: "/dashboard/restaurant/profile", icon: <User className="h-4 w-4" /> },
   { label: "Reviews", path: "/dashboard/restaurant/reviews", icon: <Star className="h-4 w-4" /> },
   { label: "Analytics", path: "/dashboard/restaurant/analytics", icon: <TrendingUp className="h-4 w-4" /> },
@@ -18,7 +19,7 @@ const navItems = [
 
 const categories = ["Quick Bites", "Main Course", "Beverages", "Desserts", "Starters", "Chinese", "Italian"];
 
-const OrderCard = ({ order, onStatusChange }: { order: any, onStatusChange: (id: string, updates: any) => void }) => {
+const OrderCard = ({ order, onStatusChange }: { order: any, onStatusChange: (id: string, updates: any, items?: any[]) => void }) => {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -102,7 +103,7 @@ const OrderCard = ({ order, onStatusChange }: { order: any, onStatusChange: (id:
 
       {action && (
         <button 
-          onClick={() => onStatusChange(order.id, { kitchenStatus: action.next })}
+          onClick={() => onStatusChange(order.id, { kitchenStatus: action.next }, items)}
           className={`w-full h-12 rounded-[1.5rem] ${action.color} text-white font-display font-black text-[10px] uppercase tracking-[0.3em] flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all`}
         >
           {action.icon}
@@ -137,6 +138,14 @@ const RestaurantDashboard = () => {
     isRegular: true,
   });
 
+  const [ingredients, setIngredients] = useState<any[]>([]);
+  const [formIngredients, setFormIngredients] = useState<{ingredientId: string, name: string, quantity: string}[]>([]);
+  const [ingredientSearch, setIngredientSearch] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [stockUpdates, setStockUpdates] = useState<Record<string, string>>({});
+  const [stockWarning, setStockWarning] = useState<{docId: string, updates: any, orderItems: any[], shortages: any[], affectedItems: string[]} | null>(null);
+  const [disableAffected, setDisableAffected] = useState(true);
+
   useEffect(() => {
     if (!userProfile) return;
     
@@ -162,6 +171,12 @@ const RestaurantDashboard = () => {
       setOrders(fetched);
     });
 
+    // Fetch Ingredients
+    const qIngredients = query(collection(db, "ingredients"), where("restaurantId", "==", userProfile.uid));
+    const unsubIngredients = onSnapshot(qIngredients, (snapshot) => {
+      setIngredients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
     // Fetch Restaurant Profile
     const fetchProfile = async () => {
       try {
@@ -176,18 +191,95 @@ const RestaurantDashboard = () => {
     };
     fetchProfile();
 
-    return () => { unsubMenu(); unsubOrders(); };
+    return () => { unsubMenu(); unsubOrders(); unsubIngredients(); };
   }, [userProfile]);
 
   const currentOrders = orders.filter(o => o.kitchenStatus !== "handed_over" && o.orderStatus !== "cancelled");
   const pastOrders = orders.filter(o => o.kitchenStatus === "handed_over" || o.orderStatus === "cancelled");
 
-  const handleStatusChange = async (docId: string, updates: any) => {
+  const handleStatusChange = async (docId: string, updates: any, orderItems?: any[]) => {
     try {
       const orderRef = doc(db, "orders", docId);
+
+      // --- STOCK VALIDATION for 'accepted' ---
+      if (updates.kitchenStatus === "accepted" && orderItems) {
+         let hasShortage = false;
+         const shortages: any[] = [];
+         const affectedItemIds = new Set<string>();
+
+         for (const orderItem of orderItems) {
+            const itemId = orderItem.itemId;
+            if (!itemId) continue;
+            const itemQty = orderItem.quantity || 1;
+            
+            const qMap = query(collection(db, "item_ingredients"), where("itemId", "==", itemId));
+            const mapSnap = await getDocs(qMap);
+            
+            for (const mapDoc of mapSnap.docs) {
+               const mapping = mapDoc.data();
+               const ingId = mapping.ingredientId;
+               const needQty = (mapping.quantity || 0) * itemQty;
+               
+               if (ingId && needQty > 0) {
+                  const ingRef = doc(db, "ingredients", ingId);
+                  const ingSnap = await getDoc(ingRef);
+                  if (ingSnap.exists()) {
+                     const currentStock = Number(ingSnap.data().stock) || 0;
+                     if (currentStock < needQty) {
+                        hasShortage = true;
+                        shortages.push({ 
+                            name: ingSnap.data().name, 
+                            need: needQty, 
+                            have: currentStock, 
+                            itemName: orderItem.name 
+                        });
+                        affectedItemIds.add(itemId);
+                     }
+                  }
+               }
+            }
+         }
+
+         if (hasShortage) {
+             setStockWarning({ docId, updates, orderItems, shortages, affectedItems: Array.from(affectedItemIds) });
+             return; // pause flow
+         }
+      }
+
       // Synchronize orderStatus for customer/admin transparency
       if (updates.kitchenStatus === "accepted") updates.orderStatus = "accepted";
       if (updates.kitchenStatus === "preparing") updates.orderStatus = "preparing";
+
+      if (updates.kitchenStatus === "handed_over") {
+         const orderDoc = await getDoc(orderRef);
+         if (orderDoc.exists() && !orderDoc.data().stockDeducted && orderItems) {
+            for (const orderItem of orderItems) {
+               const itemId = orderItem.itemId;
+               if (!itemId) continue;
+               const itemQty = orderItem.quantity || 1;
+               
+               const qIngredientsMap = query(collection(db, "item_ingredients"), where("itemId", "==", itemId));
+               const mapSnap = await getDocs(qIngredientsMap);
+               
+               for (const mapDoc of mapSnap.docs) {
+                  const data = mapDoc.data();
+                  const ingredientId = data.ingredientId;
+                  const ingredientQty = data.quantity || 0;
+                  const totalDeduct = itemQty * ingredientQty;
+                  
+                  if (ingredientId && totalDeduct > 0) {
+                      const ingRef = doc(db, "ingredients", ingredientId);
+                      const ingSnap = await getDoc(ingRef);
+                      if (ingSnap.exists()) {
+                          const currentStock = ingSnap.data().stock || 0;
+                          await updateDoc(ingRef, { stock: Math.max(0, currentStock - totalDeduct) });
+                      }
+                  }
+               }
+            }
+            updates.stockDeducted = true;
+         }
+      }
 
       await updateDoc(orderRef, updates);
       toast.success("Enterprise protocol state updated.");
@@ -219,7 +311,7 @@ const RestaurantDashboard = () => {
     }
   };
 
-  const tab = pathname.includes("/menu") ? "menu" : pathname.includes("/reviews") ? "reviews" : pathname.includes("/analytics") ? "analytics" : pathname.includes("/profile") ? "profile" : "orders";
+  const tab = pathname.includes("/menu") ? "menu" : pathname.includes("/inventory") ? "inventory" : pathname.includes("/reviews") ? "reviews" : pathname.includes("/analytics") ? "analytics" : pathname.includes("/profile") ? "profile" : "orders";
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,7 +321,7 @@ const RestaurantDashboard = () => {
       return;
     }
     try {
-      await addDoc(collection(db, "items"), {
+      const itemRef = await addDoc(collection(db, "items"), {
         ...formData,
         price: parseFloat(formData.price),
         restaurantId: userProfile.uid,
@@ -237,9 +329,23 @@ const RestaurantDashboard = () => {
         status: userProfile.status === "active" ? "available" : "unavailable",
         createdAt: Date.now(),
       });
+
+      for (const fi of formIngredients) {
+         if (fi.quantity) {
+             await addDoc(collection(db, "item_ingredients"), {
+                 itemId: itemRef.id,
+                 ingredientId: fi.ingredientId,
+                 quantity: parseFloat(fi.quantity) || 0,
+                 restaurantId: userProfile.uid
+             });
+         }
+      }
+
       toast.success("Item added successfully!");
       setShowAddForm(false);
       setFormData({ name: "", description: "", image: "", price: "", category: "Quick Bites", isVeg: true, isJain: false, isRegular: true });
+      setFormIngredients([]);
+      setIngredientSearch("");
     } catch (error) {
       toast.error("Failed to add item");
     }
@@ -290,6 +396,65 @@ const RestaurantDashboard = () => {
 
   return (
     <DashboardLayout title="Restaurant Operations" items={navItems}>
+      {stockWarning && (
+         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <div className="bg-[#0F172A] border border-red-500/30 p-8 rounded-[3rem] shadow-2xl max-w-lg w-full animate-in zoom-in-95 duration-300">
+               <div className="flex items-center gap-4 mb-6">
+                   <div className="h-12 w-12 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center">
+                       <AlertTriangle className="h-6 w-6" />
+                   </div>
+                   <div>
+                       <h3 className="font-display font-black text-2xl text-foreground uppercase italic tracking-tighter">Inventory Alert</h3>
+                       <p className="text-[10px] uppercase font-black tracking-widest text-red-400">Insufficient Requirements</p>
+                   </div>
+               </div>
+               
+               <div className="space-y-3 mb-8 max-h-[30vh] overflow-y-auto pr-2">
+                   {stockWarning.shortages.map((s: any, idx: number) => (
+                       <div key={idx} className="p-4 rounded-2xl bg-red-500/5 border border-red-500/10 flex justify-between items-center">
+                           <div>
+                              <p className="text-sm font-black text-foreground">{s.name}</p>
+                              <p className="text-[10px] text-muted-foreground uppercase opacity-70 mt-1">For {s.itemName}</p>
+                           </div>
+                           <div className="text-right">
+                              <p className="text-sm font-black text-red-500">Need: {s.need}</p>
+                              <p className="text-[10px] text-muted-foreground uppercase opacity-70 mt-1">Have: {s.have}</p>
+                           </div>
+                       </div>
+                   ))}
+               </div>
+
+               <label className="flex items-start gap-4 p-4 rounded-2xl bg-foreground/5 border border-foreground/10 cursor-pointer group mb-8">
+                   <input type="checkbox" checked={disableAffected} onChange={(e) => setDisableAffected(e.target.checked)} className="mt-1" />
+                   <div>
+                       <span className="text-sm font-black text-foreground">Auto-Hide Affected Items</span>
+                       <p className="text-[10px] text-muted-foreground uppercase leading-relaxed mt-1 opacity-70">Mark the items causing this shortage as unavailable to prevent further orders until inventory is restocked.</p>
+                   </div>
+               </label>
+               
+               <div className="flex gap-4">
+                   <button onClick={() => setStockWarning(null)} className="flex-1 py-4 rounded-2xl bg-foreground/5 text-foreground font-black text-[10px] uppercase tracking-widest hover:bg-foreground/10 transition-all">Cancel</button>
+                   <button onClick={async () => {
+                       const { docId, updates, affectedItems } = stockWarning;
+                       if (disableAffected) {
+                           for (const itemId of affectedItems) {
+                               await updateDoc(doc(db, "items", itemId), { status: "unavailable" });
+                           }
+                           toast.success("Menu updated to prevent further shortages.");
+                       }
+                       setStockWarning(null);
+                       updates.kitchenStatus = "accepted";
+                       updates.orderStatus = "accepted";
+                       
+                       const orderRef = doc(db, "orders", docId);
+                       await updateDoc(orderRef, updates);
+                       toast.success("Enterprise protocol state updated.");
+                   }} className="flex-1 py-4 rounded-2xl bg-red-500 text-white font-black text-[10px] uppercase tracking-widest hover:bg-red-600 transition-all shadow-lg shadow-red-500/20">Proceed Anyway</button>
+               </div>
+            </div>
+         </div>
+      )}
+
       {userProfile?.status === "pending" && (
         <div className="mb-8 p-6 rounded-3xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-4 animate-in slide-in-from-top-4">
           <div className="h-12 w-12 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-500 shadow-lg shadow-amber-500/10">
@@ -303,7 +468,7 @@ const RestaurantDashboard = () => {
       )}
 
       <div className="flex flex-wrap gap-4 mb-12">
-        {(["orders", "menu", "profile", "analytics", "reviews"] as const).map((t) => (
+        {(["orders", "menu", "inventory", "profile", "analytics", "reviews"] as const).map((t) => (
           <button key={t} onClick={() => navigate(t === "orders" ? "/dashboard/restaurant" : `/dashboard/restaurant/${t}`)}
             className={`px-8 h-12 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] transition-all border ${tab === t ? "bg-primary text-white border-primary shadow-xl shadow-primary/20" : "glass border-foreground/5 text-muted-foreground hover:border-foreground/10"}`}>
             {t} IDENTITY
@@ -568,7 +733,52 @@ const RestaurantDashboard = () => {
                        )}
                     </div>
                   </div>
-                  <div className="p-8 rounded-[2.5rem] bg-foreground/5 border border-foreground/5 space-y-6 shadow-inner">
+                  <div className="space-y-4 pt-6 border-t border-foreground/5">
+                      <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] opacity-60">Required Elements (Inventory Map)</h4>
+                      <div className="space-y-4 relative z-20">
+                          {formIngredients.map((fi, idx) => (
+                              <div key={idx} className="flex items-center gap-4">
+                                  <span className="flex-1 px-6 h-12 rounded-xl bg-foreground/5 flex items-center text-sm font-black italic shadow-inner">{fi.name}</span>
+                                  <input type="number" placeholder="Qty" value={fi.quantity} onChange={(e) => {
+                                      const newI = [...formIngredients];
+                                      newI[idx].quantity = e.target.value;
+                                      setFormIngredients(newI);
+                                  }} className="w-24 h-12 px-4 rounded-xl bg-foreground/5 border border-foreground/5 text-sm font-black focus:outline-primary/40 focus:ring-2 transition-all shadow-inner" />
+                                  <button type="button" onClick={() => setFormIngredients(formIngredients.filter((_, i) => i !== idx))} className="h-12 w-12 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all">
+                                      <Trash2 className="h-4 w-4" />
+                                  </button>
+                              </div>
+                          ))}
+                          <div className="relative">
+                              <input type="text" placeholder="Search and add ingredient..." value={ingredientSearch} onChange={(e) => setIngredientSearch(e.target.value)} onFocus={() => setDropdownOpen(true)} onBlur={() => setTimeout(() => setDropdownOpen(false), 200)} className="w-full h-12 px-6 rounded-xl bg-foreground/5 border border-foreground/5 text-sm font-black focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all shadow-inner placeholder:text-muted-foreground/40" />
+                              {dropdownOpen && (
+                                 <div className="absolute top-14 left-0 right-0 bg-background/95 backdrop-blur-md border border-foreground/10 rounded-2xl shadow-premium max-h-48 overflow-y-auto">
+                                     {ingredients.filter(i => i.name.toLowerCase().includes(ingredientSearch.toLowerCase()) && !formIngredients.find(f => f.ingredientId === i.id)).map(ing => (
+                                         <div key={ing.id} onMouseDown={() => { 
+                                             setFormIngredients([...formIngredients, { ingredientId: ing.id, name: ing.name, quantity: "" }]); 
+                                             setIngredientSearch(""); 
+                                         }} className="px-6 py-4 hover:bg-foreground/5 cursor-pointer font-black text-sm italic border-b border-foreground/5 last:border-0 flex justify-between">{ing.name} <span className="text-[10px] text-muted-foreground uppercase opacity-60">Stock: {ing.stock}</span></div>
+                                     ))}
+                                     {ingredientSearch.trim() && !ingredients.find(i => i.name.toLowerCase() === ingredientSearch.trim().toLowerCase()) && (
+                                         <div onMouseDown={async () => {
+                                             const newIngRef = await addDoc(collection(db, "ingredients"), {
+                                                 name: ingredientSearch.trim(),
+                                                 stock: 0,
+                                                 restaurantId: userProfile!.uid
+                                             });
+                                             setFormIngredients([...formIngredients, { ingredientId: newIngRef.id, name: ingredientSearch.trim(), quantity: "" }]);
+                                             setIngredientSearch("");
+                                         }} className="px-6 py-4 hover:bg-primary/10 text-primary cursor-pointer font-black text-sm italic flex items-center gap-2">
+                                             <Plus className="h-4 w-4" /> Add "{ingredientSearch.trim()}" as new tracking element
+                                         </div>
+                                     )}
+                                 </div>
+                              )}
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="p-8 rounded-[2.5rem] bg-foreground/5 border border-foreground/5 space-y-6 shadow-inner z-10">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className={`h-3 w-3 rounded-full transition-shadow duration-500 ${formData.isVeg ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.5)]'}`} />
@@ -623,8 +833,18 @@ const RestaurantDashboard = () => {
                 </div>
                 <div className="flex-1 px-1">
                   <div className="flex items-start justify-between gap-4 mb-3">
-                    <h4 className="font-display font-black text-xl text-foreground group-hover:text-primary transition-colors tracking-tighter italic uppercase line-clamp-1 truncate">{item.name}</h4>
-                    <span className="font-display font-black text-2xl text-primary tracking-tighter italic">₹{item.price}</span>
+                     <div>
+                        <h4 className="font-display font-black text-xl text-foreground group-hover:text-primary transition-colors tracking-tighter italic uppercase line-clamp-1 truncate">{item.name}</h4>
+                        <button onClick={async () => {
+                            const newStatus = item.status === "available" ? "unavailable" : "available";
+                            await updateDoc(doc(db, "items", item.id), { status: newStatus });
+                            toast.success(`${item.name} is now ${newStatus === 'available' ? 'Accepting Orders' : 'Hidden from Menu'}`);
+                        }} className={`mt-2 flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all ${item.status === 'available' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'}`}>
+                           <div className={`h-1.5 w-1.5 rounded-full ${item.status === 'available' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                           {item.status === 'available' ? 'Taking Orders' : 'Offline / Restocking'}
+                        </button>
+                     </div>
+                     <span className="font-display font-black text-2xl text-primary tracking-tighter italic">₹{item.price}</span>
                   </div>
                   <p className="text-[10px] text-muted-foreground line-clamp-2 mb-6 leading-relaxed font-black uppercase tracking-widest opacity-60">{item.description}</p>
                   <div className="flex flex-wrap gap-2 pt-6 border-t border-foreground/5">
@@ -635,6 +855,96 @@ const RestaurantDashboard = () => {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {tab === "inventory" && (
+        <div className="space-y-10 animate-in fade-in duration-700">
+           <div className="flex items-center justify-between">
+              <div>
+                 <h3 className="font-display font-black text-3xl text-foreground tracking-tighter uppercase italic flex items-center gap-4">
+                    Stock Administration
+                    <Boxes className="h-6 w-6 text-primary" />
+                 </h3>
+                 <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] mt-1 opacity-70">Ingredient Manifest Controls</p>
+              </div>
+           </div>
+
+           {ingredients.length === 0 ? (
+               <div className="py-32 text-center border-2 border-dashed border-foreground/10 rounded-[4rem] glass-card">
+                  <Boxes className="h-16 w-16 text-muted-foreground mx-auto mb-6 opacity-20" />
+                  <h4 className="font-display font-black text-foreground italic uppercase tracking-tighter text-xl">Empty Vault</h4>
+                  <p className="text-[10px] text-muted-foreground font-black uppercase mt-2 tracking-widest opacity-60">Add inventory via the menu creation protocol.</p>
+               </div>
+           ) : (
+             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mt-12">
+                {ingredients.map(ing => (
+                   <div key={ing.id} className="p-6 rounded-[2.5rem] glass-card border border-foreground/5 shadow-premium animate-in fade-in flex items-center justify-between hover:border-primary/20 transition-all">
+                      <div>
+                         <h4 className="font-display font-black text-xl italic tracking-tighter max-w-[120px] truncate">{ing.name}</h4>
+                         <p className="text-[10px] text-muted-foreground uppercase tracking-widest opacity-60 mt-1">Stock ID: {ing.id.slice(0, 8)}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                         <input 
+                            type="number"
+                            value={stockUpdates[ing.id] ?? ing.stock}
+                            onChange={(e) => setStockUpdates(prev => ({...prev, [ing.id]: e.target.value}))}
+                            className="w-16 h-12 px-3 rounded-2xl bg-foreground/5 text-center font-black shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all border border-foreground/5"
+                         />
+                         {(stockUpdates[ing.id] !== undefined && stockUpdates[ing.id] !== String(ing.stock)) && (
+                             <button onClick={async () => {
+                                 const parsedStock = parseFloat(stockUpdates[ing.id]);
+                                 await updateDoc(doc(db, "ingredients", ing.id), { stock: parsedStock });
+
+                                 // Auto-restore items relying on this ingredient if stock is > 0
+                                 if (parsedStock > 0) {
+                                     const qMap = query(collection(db, "item_ingredients"), where("ingredientId", "==", ing.id));
+                                     const mapSnap = await getDocs(qMap);
+                                     const itemsToRestore = Array.from(new Set(mapSnap.docs.map(doc => doc.data().itemId)));
+                                     
+                                     let restoredCount = 0;
+                                     for (const tId of itemsToRestore) {
+                                         if (!tId) continue;
+                                         const tRef = doc(db, "items", tId);
+                                         const tSnap = await getDoc(tRef);
+                                         // verify item is currently unavailable
+                                         if (tSnap.exists() && tSnap.data().status === "unavailable") {
+                                             let canRestore = true;
+                                             const reqs = await getDocs(query(collection(db, "item_ingredients"), where("itemId", "==", tId)));
+                                             for (const req of reqs.docs) {
+                                                 const reqData = req.data();
+                                                 const rIng = await getDoc(doc(db, "ingredients", reqData.ingredientId));
+                                                 const checkingStock = rIng.id === ing.id ? parsedStock : (rIng.data()?.stock || 0);
+                                                 if (checkingStock < reqData.quantity) {
+                                                     canRestore = false;
+                                                     break;
+                                                 }
+                                             }
+                                             
+                                             if (canRestore) {
+                                                 await updateDoc(tRef, { status: "available" });
+                                                 restoredCount++;
+                                             }
+                                         }
+                                     }
+                                     if (restoredCount > 0) {
+                                        toast.success(`Automatically returned ${restoredCount} menu item(s) to accepting orders`);
+                                     }
+                                 }
+
+                                 const newUpdates = {...stockUpdates};
+                                 delete newUpdates[ing.id];
+                                 setStockUpdates(newUpdates);
+                                 toast.success(`Inventory updated for ${ing.name}`);
+                             }} className="h-12 w-12 bg-primary text-white rounded-2xl flex items-center justify-center hover:scale-105 shadow-xl shadow-primary/20 transition-all animate-in zoom-in">
+                                 <Save className="h-5 w-5" />
+                             </button>
+                         )}
+                      </div>
+                   </div>
+                ))}
+             </div>
+           )}
         </div>
       )}
 
