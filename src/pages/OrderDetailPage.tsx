@@ -6,9 +6,19 @@ import { useState, useEffect } from "react";
 import { useCart } from "@/contexts/CartContext";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
+import jsPDF from "jspdf";
 
-const foodSteps = ["placed", "accepted", "preparing", "picked", "delivered"];
-const instamartSteps = ["ordered", "packed", "picked", "delivered"];
+const foodSteps = ["placed", "accepted", "preparing", "picked", "on-way", "delivered"];
+const instamartSteps = ["ordered", "packed", "picked", "on-way", "delivered"];
+
+// Status normalization map to handle various internal status strings
+const statusAlias: Record<string, string> = {
+  "handed_over": "preparing", // Kitchen is done, waiting for pickup
+  "assigned": "preparing",    // Partner assigned, not yet picked
+  "on-way": "on-way",
+  "out_for_delivery": "on-way",
+  "ready": "preparing"
+};
 
 const OrderDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -74,8 +84,135 @@ const OrderDetailPage = () => {
     }
   };
 
+  const generateBill = () => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: [80, 200]
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let y = 10;
+
+      const addDashedLine = () => {
+        y += 2;
+        doc.setLineDashPattern([1, 1], 0);
+        doc.line(5, y, pageWidth - 5, y);
+        y += 5;
+        doc.setLineDashPattern([], 0);
+      };
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.text(order.restaurantName || "MAHARAJA", pageWidth / 2, y, { align: "center" });
+      y += 5;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.text("Pure Veg", pageWidth / 2, y, { align: "center" });
+      y += 4;
+      doc.text(order.address || "Dadar(W), Mumbai", pageWidth / 2, y, { align: "center" });
+      y += 2;
+
+      addDashedLine();
+
+      doc.text("TAX INVOICE", pageWidth / 2, y, { align: "center" });
+      y += 2;
+
+      addDashedLine();
+
+      const dateStr = order.createdAt?.toDate 
+        ? new Date(order.createdAt.toDate()).toLocaleDateString("en-IN", { day: '2-digit', month: '2-digit', year: 'numeric' }) 
+        : new Date().toLocaleDateString("en-IN", { day: '2-digit', month: '2-digit', year: 'numeric' });
+      
+      doc.text(`Date: ${dateStr}`, 5, y);
+      doc.text(`Bill No. : ${order.orderId ? order.orderId.substring(order.orderId.length - 4) : '8598'}`, pageWidth - 5, y, { align: "right" });
+      y += 5;
+      
+      doc.text(`PBoy: COUNTER`, 5, y);
+      y += 5;
+
+      doc.setFont("helvetica", "bold");
+      doc.text("Particulars", 5, y);
+      doc.text("Qty", pageWidth - 35, y, { align: "right" });
+      doc.text("Rate", pageWidth - 20, y, { align: "right" });
+      doc.text("Amount", pageWidth - 5, y, { align: "right" });
+      y += 2;
+
+      addDashedLine();
+
+      doc.setFont("helvetica", "normal");
+      let totalItems = 0;
+      orderItems.forEach(item => {
+        const name = item.name.substring(0, 15);
+        doc.text(name, 5, y);
+        doc.text(item.quantity.toString(), pageWidth - 35, y, { align: "right" });
+        doc.text(item.price.toString(), pageWidth - 20, y, { align: "right" });
+        doc.text((item.quantity * item.price).toString(), pageWidth - 5, y, { align: "right" });
+        totalItems += item.quantity;
+        y += 5;
+      });
+
+      y -= 3;
+      addDashedLine();
+
+      const subTotal = order.totalAmount || 0;
+      const sgst = (subTotal * 0.025).toFixed(2);
+      const cgst = (subTotal * 0.025).toFixed(2);
+      
+      doc.text("Sub Total :", pageWidth - 20, y, { align: "right" });
+      doc.text(subTotal.toString() + ".00", pageWidth - 5, y, { align: "right" });
+      y += 5;
+      
+      doc.text("SGST @2.5% :", pageWidth - 20, y, { align: "right" });
+      doc.text(sgst, pageWidth - 5, y, { align: "right" });
+      y += 5;
+
+      doc.text("CGST @2.5% :", pageWidth - 20, y, { align: "right" });
+      doc.text(cgst, pageWidth - 5, y, { align: "right" });
+      y += 2;
+
+      addDashedLine();
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text(`${totalItems} Item(s)`, 5, y);
+      doc.text("Total :", pageWidth - 25, y, { align: "right" });
+      doc.text(Math.round(subTotal + parseFloat(sgst) + parseFloat(cgst)).toString(), pageWidth - 5, y, { align: "right" });
+      y += 2;
+      
+      addDashedLine();
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      const timeStr = order.createdAt?.toDate 
+        ? new Date(order.createdAt.toDate()).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit', hour12: false }) 
+        : new Date().toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit', hour12: false });
+      
+      doc.text("FSSAI NO - 11516004000575", 5, y);
+      doc.text(`(${timeStr})`, pageWidth - 5, y, { align: "right" });
+      y += 5;
+
+      doc.text("E.&O.E.", 5, y);
+      doc.text("Thank You", pageWidth / 2, y, { align: "center" });
+      doc.text("Visit Again", pageWidth - 5, y, { align: "right" });
+
+      doc.save(`Invoice_${order.orderId || 'bill'}.pdf`);
+      toast.success("Bill downloaded successfully");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate bill");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const statusSteps = order.orderType === "instamart" ? instamartSteps : foodSteps;
-  const currentStep = order.orderStatus === "cancelled" ? -1 : statusSteps.indexOf(order.orderStatus);
+  const normalizedStatus = statusAlias[order.orderStatus] || order.orderStatus;
+  const currentStep = order.orderStatus === "cancelled" ? -1 : statusSteps.indexOf(normalizedStatus);
   const isCancellable = ["placed", "ordered"].includes(order.orderStatus);
 
   return (
@@ -214,9 +351,10 @@ const OrderDetailPage = () => {
                <XCircle className="h-5 w-5" /> Terminate Operation
              </button>
            )}
-           <button onClick={() => window.print()}
+           <button onClick={generateBill} disabled={isDownloading}
              className="px-10 h-14 rounded-3xl bg-slate-900 border border-slate-800 text-white font-display font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-800 transition-all flex items-center justify-center gap-3">
-             <Download className="h-5 w-5 text-primary" /> Manifest Extraction
+             {isDownloading ? <Loader2 className="h-5 w-5 text-primary animate-spin" /> : <Download className="h-5 w-5 text-primary" />} 
+             {isDownloading ? "Processing..." : "Manifest Extraction"}
            </button>
         </div>
       </main>

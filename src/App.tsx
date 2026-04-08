@@ -22,7 +22,10 @@ import RestaurantDashboard from "./pages/dashboard/RestaurantDashboard";
 import DeliveryDashboard from "./pages/dashboard/DeliveryDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import InstamartDashboard from "./pages/dashboard/InstamartDashboard";
+import DineoutDashboard from "./pages/dashboard/DineoutDashboard";
 import Profile from "./pages/Profile";
+import DineoutPage from "./pages/DineoutPage";
+import DineoutRestaurantPage from "./pages/DineoutRestaurantPage";
 import NotFound from "./pages/NotFound";
 import { RoleGuard } from "@/components/RoleGuard";
 
@@ -30,6 +33,7 @@ const queryClient = new QueryClient();
 
 import RestaurantDetails from "./pages/auth/RestaurantDetails";
 import DeliveryDetails from "./pages/auth/DeliveryDetails";
+import DineoutDetails from "./pages/auth/DineoutDetails";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -51,6 +55,8 @@ const App = () => (
               <Route path="/track/:id" element={<OrderTrackingPage />} />
               <Route path="/feedback/:id" element={<FeedbackPage />} />
               <Route path="/instamart" element={<InstamartPage />} />
+              <Route path="/dineout" element={<DineoutPage />} />
+              <Route path="/dineout/:id" element={<DineoutRestaurantPage />} />
               {/* Auth */}
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
@@ -58,6 +64,7 @@ const App = () => (
               <Route path="/profile" element={<RoleGuard><Profile /></RoleGuard>} />
               <Route path="/register/restaurant-details" element={<RoleGuard requiredRole="restaurant_owner"><RestaurantDetails /></RoleGuard>} />
               <Route path="/register/delivery-details" element={<RoleGuard requiredRole="delivery_partner"><DeliveryDetails /></RoleGuard>} />
+              <Route path="/register/dineout-details" element={<RoleGuard requiredRole="dineout_owner"><DineoutDetails /></RoleGuard>} />
               {/* Dashboards */}
               <Route path="/dashboard/restaurant" element={<RoleGuard requiredRole="restaurant_owner"><RestaurantDashboard /></RoleGuard>} />
               <Route path="/dashboard/restaurant/*" element={<RoleGuard requiredRole="restaurant_owner"><RestaurantDashboard /></RoleGuard>} />
@@ -67,6 +74,8 @@ const App = () => (
               <Route path="/dashboard/admin/*" element={<RoleGuard requiredRole="admin"><AdminDashboard /></RoleGuard>} />
               <Route path="/dashboard/instamart" element={<RoleGuard requiredRole="insta_handler"><InstamartDashboard /></RoleGuard>} />
               <Route path="/dashboard/instamart/*" element={<RoleGuard requiredRole="insta_handler"><InstamartDashboard /></RoleGuard>} />
+              <Route path="/dashboard/dineout" element={<RoleGuard requiredRole="dineout_owner"><DineoutDashboard /></RoleGuard>} />
+              <Route path="/dashboard/dineout/*" element={<RoleGuard requiredRole="dineout_owner"><DineoutDashboard /></RoleGuard>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

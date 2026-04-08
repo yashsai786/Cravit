@@ -17,7 +17,7 @@ import {
 } from "firebase/firestore";
 import { auth, db, googleProvider } from "@/lib/firebase";
 
-export type UserRole = "customer" | "admin" | "restaurant_owner" | "delivery_partner" | "insta_handler";
+export type UserRole = "customer" | "admin" | "restaurant_owner" | "delivery_partner" | "insta_handler" | "dineout_owner";
 export type UserStatus = "active" | "pending" | "rejected" | "blocked";
 
 export interface UserProfile {

@@ -15,7 +15,7 @@ const HeroSection = () => {
         
         <div className="absolute inset-0 flex flex-col justify-center px-12 sm:px-20 md:px-24">
           <div className="p-1 px-3 rounded-lg bg-primary/20 border border-primary/30 w-fit mb-6 animate-in slide-in-from-left duration-500">
-             <p className="text-[10px] font-black text-primary uppercase tracking-[0.3em]">Institutional Grade Logistics</p>
+             <p className="text-[10px] font-black text-primary uppercase tracking-[0.3em]">Fast & Reliable Delivery</p>
           </div>
           <h1 className="font-display font-black text-4xl sm:text-6xl md:text-7xl text-foreground leading-none max-w-2xl italic uppercase tracking-tighter">
             Don't Wait,
@@ -25,11 +25,11 @@ const HeroSection = () => {
             </span>
           </h1>
           <p className="mt-6 text-muted-foreground text-sm sm:text-lg max-w-lg font-black leading-relaxed uppercase tracking-tight opacity-80">
-            From your favorite local kitchens, delivered to your operational coordinate in minutes.
+            From your favorite local kitchens, delivered to your doorstep in minutes.
           </p>
           <div className="mt-10 flex gap-4">
-             <button className="px-10 h-14 rounded-2xl bg-gradient-hero text-white font-display font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all">Command Now</button>
-             <button className="px-10 h-14 rounded-2xl glass text-foreground font-display font-black text-xs uppercase tracking-widest hover:bg-foreground/10 transition-all shadow-premium">Explore Sectors</button>
+             <button className="px-10 h-14 rounded-2xl bg-gradient-hero text-white font-display font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all">Order Now</button>
+             <button className="px-10 h-14 rounded-2xl glass text-foreground font-display font-black text-xs uppercase tracking-widest hover:bg-foreground/10 transition-all shadow-premium">Explore Menu</button>
           </div>
         </div>
       </div>

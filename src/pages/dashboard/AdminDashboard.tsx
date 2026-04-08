@@ -27,28 +27,28 @@ const UserEditModal = ({ user, onClose, onSave }: { user: any, onClose: () => vo
         </div>
         <div className="flex justify-between items-center mb-10 relative z-10">
           <div>
-            <h3 className="font-display font-black text-3xl text-foreground tracking-tighter uppercase italic">Override Record</h3>
-            <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] mt-1 opacity-70">Direct Kernel Modification</p>
+            <h3 className="font-display font-black text-3xl text-foreground tracking-tighter uppercase italic">Edit User</h3>
+            <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] mt-1 opacity-70">Update user profile details</p>
           </div>
           <button onClick={onClose} className="h-12 w-12 rounded-2xl bg-foreground/5 flex items-center justify-center text-muted-foreground hover:text-primary transition-all"><X className="h-6 w-6" /></button>
         </div>
         
         <div className="space-y-8 relative z-10">
           <div className="space-y-3">
-            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Identity Tag</label>
+            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Full Name</label>
             <input type="text" value={formData.displayName} onChange={(e) => setFormData({...formData, displayName: e.target.value})}
               className="w-full h-14 px-6 rounded-2xl bg-foreground/5 border border-foreground/5 text-foreground font-black italic tracking-tight focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all shadow-inner" />
           </div>
           <div className="grid grid-cols-2 gap-8">
              <div className="space-y-3">
-                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Operational Role</label>
+                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">System Role</label>
                 <select value={formData.role} onChange={(e) => setFormData({...formData, role: e.target.value})}
                   className="w-full h-14 px-6 rounded-2xl bg-foreground/5 border border-foreground/5 text-foreground font-black uppercase text-[10px] tracking-widest focus:outline-none cursor-pointer appearance-none shadow-inner">
-                  {["customer", "restaurant_owner", "delivery_partner", "admin"].map(r => <option key={r} value={r} className="bg-background text-foreground">{r}</option>)}
+                  {["customer", "restaurant_owner", "delivery_partner", "admin"].map(r => <option key={r} value={r} className="bg-background text-foreground">{r.replace('_', ' ')}</option>)}
                 </select>
              </div>
              <div className="space-y-3">
-                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Access Protocol</label>
+                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Status</label>
                 <select value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value})}
                   className="w-full h-14 px-6 rounded-2xl bg-foreground/5 border border-foreground/5 text-foreground font-black uppercase text-[10px] tracking-widest focus:outline-none cursor-pointer appearance-none shadow-inner">
                   {["active", "pending", "rejected", "banned"].map(s => <option key={s} value={s} className="bg-background text-foreground">{s}</option>)}
@@ -56,7 +56,7 @@ const UserEditModal = ({ user, onClose, onSave }: { user: any, onClose: () => vo
              </div>
           </div>
           <div className="space-y-3">
-            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Communication Link</label>
+            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Phone/Contact</label>
             <input type="text" value={formData.contact} onChange={(e) => setFormData({...formData, contact: e.target.value})}
               className="w-full h-14 px-6 rounded-2xl bg-foreground/5 border border-foreground/5 text-foreground font-mono font-black focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all shadow-inner" />
           </div>
@@ -64,7 +64,7 @@ const UserEditModal = ({ user, onClose, onSave }: { user: any, onClose: () => vo
 
         <div className="mt-12 flex gap-4 relative z-10">
           <button onClick={() => onSave(formData)} className="flex-1 h-16 rounded-[2rem] bg-primary text-white font-display font-black text-[10px] uppercase tracking-[0.3em] shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-4">
-             <Save className="h-5 w-5" /> Commit Changes
+             <Save className="h-5 w-5" /> Save Changes
           </button>
         </div>
       </div>
@@ -82,7 +82,7 @@ const OrderDetailView = ({ order }: { order: any }) => {
   return (
     <div className="mt-6 p-6 rounded-[2rem] bg-foreground/5 border border-foreground/5 space-y-4 animate-in slide-in-from-top-2 duration-400 shadow-inner">
        <div className="flex items-center justify-between border-b border-foreground/5 pb-3">
-          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] flex items-center gap-2 opacity-60"><Package className="h-4 w-4" /> Procurement Matrix</span>
+          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] flex items-center gap-2 opacity-60"><Package className="h-4 w-4" /> Order Details</span>
           <span className="text-[10px] font-black text-foreground uppercase tracking-widest">{order.userName}</span>
        </div>
        <ul className="space-y-3">
@@ -94,7 +94,7 @@ const OrderDetailView = ({ order }: { order: any }) => {
           ))}
        </ul>
        <div className="pt-4 border-t border-foreground/5 flex justify-between font-display font-black text-primary text-sm uppercase italic tracking-tighter">
-          <span>Total Liability</span>
+          <span>Total Amount</span>
           <span>₹{order.totalAmount}</span>
        </div>
     </div>
@@ -175,15 +175,15 @@ const AdminDashboard = () => {
   }), [users, restaurants, orders]);
 
   return (
-    <DashboardLayout title="Universal Administrative Controller" items={navItems}>
+    <DashboardLayout title="Admin Dashboard" items={navItems}>
       {editingUser && <UserEditModal user={editingUser} onClose={() => setEditingUser(null)} onSave={handleUpdateUser} />}
       
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
         {[
           { label: "Accounts", value: stats.totalUsers, color: "text-blue-500", icon: <Users className="h-6 w-6" /> },
-          { label: "Active Nodes", value: stats.activeRestaurants, color: "text-emerald-500", icon: <Store className="h-6 w-6" /> },
-          { label: "Transactions", value: stats.totalOrders, color: "text-amber-500", icon: <ShoppingBag className="h-6 w-6" /> },
-          { label: "Fiscal Velocity", value: `₹${stats.revenue}`, color: "text-rose-500", icon: <TrendingUp className="h-6 w-6" /> },
+          { label: "Restaurants", value: stats.activeRestaurants, color: "text-emerald-500", icon: <Store className="h-6 w-6" /> },
+          { label: "Orders", value: stats.totalOrders, color: "text-amber-500", icon: <ShoppingBag className="h-6 w-6" /> },
+          { label: "Revenue", value: `₹${stats.revenue}`, color: "text-rose-500", icon: <TrendingUp className="h-6 w-6" /> },
         ].map((s) => (
           <div key={s.label} className="p-10 rounded-[3rem] glass-card border border-foreground/5 shadow-premium transition-all hover:border-primary/20 group relative overflow-hidden">
             <div className="absolute top-0 right-0 p-8 opacity-[0.02] group-hover:scale-110 group-hover:opacity-5 transition-all duration-700">
@@ -204,7 +204,7 @@ const AdminDashboard = () => {
         {(["overview", "users", "customers", "restaurants", "delivery", "orders", "approvals"] as const).map((t) => (
           <button key={t} onClick={() => navigate(t === "overview" ? "/dashboard/admin" : `/dashboard/admin/${t}`)}
             className={`px-8 h-12 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] transition-all border ${tab === t ? "bg-primary text-white border-primary shadow-xl shadow-primary/20" : "glass border-foreground/5 text-muted-foreground hover:border-foreground/10"}`}>
-            {t} IDENTITY
+            {t.toUpperCase()}
           </button>
         ))}
       </div>
@@ -213,7 +213,7 @@ const AdminDashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
            <div className="p-10 rounded-[3.5rem] glass-card border border-foreground/5 shadow-premium">
               <h3 className="font-display font-black text-2xl text-foreground uppercase italic tracking-tighter mb-10 flex items-center gap-4">
-                 Node Influx Visualization
+                 Recent Users
                  <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
               </h3>
               <div className="space-y-6">
@@ -234,7 +234,7 @@ const AdminDashboard = () => {
            
            <div className="p-10 rounded-[3.5rem] glass-card border border-foreground/5 shadow-premium">
               <h3 className="font-display font-black text-2xl text-foreground uppercase italic tracking-tighter mb-10 flex items-center gap-4">
-                 Recent Fiscal Events
+                 Recent Orders
                  <div className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
               </h3>
               <div className="space-y-6">
@@ -265,7 +265,7 @@ const AdminDashboard = () => {
               <div className="flex-1 relative min-w-[280px]">
                  <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground opacity-50" />
                  <input type="text" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} 
-                    placeholder="SCAN BY NAME OR CREDENTIALS..."
+                    placeholder="SEARCH BY NAME OR EMAIL..."
                     className="w-full h-14 pl-14 pr-6 rounded-2xl bg-foreground/5 border border-foreground/5 text-[10px] font-black uppercase tracking-[0.3em] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all placeholder:text-muted-foreground/30 shadow-inner" />
               </div>
               <div className="flex items-center gap-4 px-6 py-2 bg-foreground/5 rounded-2xl border border-foreground/5">
@@ -332,7 +332,7 @@ const AdminDashboard = () => {
               <div className="flex-1 relative">
                  <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground opacity-50" />
                  <input type="text" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} 
-                    placeholder="LOCATE TRANSACTION BY ID OR CUSTOMER EMAIL..."
+                    placeholder="SEARCH BY ORDER ID OR EMAIL..."
                     className="w-full h-14 pl-14 pr-6 rounded-2xl bg-foreground/5 border border-foreground/5 text-[10px] font-black uppercase tracking-[0.3em] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all shadow-inner placeholder:text-muted-foreground/30" />
               </div>
            </div>

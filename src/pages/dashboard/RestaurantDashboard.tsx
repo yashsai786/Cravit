@@ -77,7 +77,7 @@ const OrderCard = ({ order, onStatusChange }: { order: any, onStatusChange: (id:
       <div className="space-y-4 mb-8">
          <div className="p-5 rounded-[2rem] bg-foreground/5 border border-foreground/5 shadow-inner">
             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4 flex items-center gap-1.5 opacity-60">
-               <PackageCheck className="h-3 w-3" /> Procurement Matrix
+               <PackageCheck className="h-3 w-3" /> Ordered Items
             </p>
             {loading ? (
               <div className="space-y-1.5">
@@ -96,7 +96,7 @@ const OrderCard = ({ order, onStatusChange }: { order: any, onStatusChange: (id:
             )}
          </div>
          <div className="flex items-center justify-between px-3 text-xs">
-            <span className="text-muted-foreground font-black uppercase tracking-[0.2em] opacity-60">Total Liability</span>
+            <span className="text-muted-foreground font-black uppercase tracking-[0.2em] opacity-60">Total Amount</span>
             <span className="text-foreground font-display font-black italic text-base">₹{order.totalAmount}</span>
          </div>
       </div>
@@ -174,7 +174,17 @@ const RestaurantDashboard = () => {
     // Fetch Ingredients
     const qIngredients = query(collection(db, "ingredients"), where("restaurantId", "==", userProfile.uid));
     const unsubIngredients = onSnapshot(qIngredients, (snapshot) => {
-      setIngredients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      fetched.sort((a: any, b: any) => {
+        const aStock = a.stock || 0;
+        const bStock = b.stock || 0;
+        const aLow = aStock < 100;
+        const bLow = bStock < 100;
+        if (aLow && !bLow) return -1;
+        if (!aLow && bLow) return 1;
+        return aStock - bStock;
+      });
+      setIngredients(fetched);
     });
 
     // Fetch Restaurant Profile
@@ -249,6 +259,7 @@ const RestaurantDashboard = () => {
       // Synchronize orderStatus for customer/admin transparency
       if (updates.kitchenStatus === "accepted") updates.orderStatus = "accepted";
       if (updates.kitchenStatus === "preparing") updates.orderStatus = "preparing";
+      if (updates.kitchenStatus === "handed_over") updates.orderStatus = "handed_over";
 
       if (updates.kitchenStatus === "handed_over") {
          const orderDoc = await getDoc(orderRef);
@@ -282,9 +293,9 @@ const RestaurantDashboard = () => {
       }
 
       await updateDoc(orderRef, updates);
-      toast.success("Enterprise protocol state updated.");
+      toast.success("Order status updated.");
     } catch (error) {
-      toast.error("Process synch failure.");
+      toast.error("Failed to update status.");
     }
   };
 
@@ -404,8 +415,8 @@ const RestaurantDashboard = () => {
                        <AlertTriangle className="h-6 w-6" />
                    </div>
                    <div>
-                       <h3 className="font-display font-black text-2xl text-foreground uppercase italic tracking-tighter">Inventory Alert</h3>
-                       <p className="text-[10px] uppercase font-black tracking-widest text-red-400">Insufficient Requirements</p>
+                       <h3 className="font-display font-black text-2xl text-foreground uppercase italic tracking-tighter">Stock Alert</h3>
+                       <p className="text-[10px] uppercase font-black tracking-widest text-red-400">Low Inventory</p>
                    </div>
                </div>
                
@@ -471,7 +482,7 @@ const RestaurantDashboard = () => {
         {(["orders", "menu", "inventory", "profile", "analytics", "reviews"] as const).map((t) => (
           <button key={t} onClick={() => navigate(t === "orders" ? "/dashboard/restaurant" : `/dashboard/restaurant/${t}`)}
             className={`px-8 h-12 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] transition-all border ${tab === t ? "bg-primary text-white border-primary shadow-xl shadow-primary/20" : "glass border-foreground/5 text-muted-foreground hover:border-foreground/10"}`}>
-            {t} IDENTITY
+            {t.toUpperCase()}
           </button>
         ))}
       </div>
@@ -484,8 +495,8 @@ const RestaurantDashboard = () => {
                     <Store className="h-8 w-8" />
                  </div>
                  <div>
-                    <h3 className="font-display font-black text-3xl text-foreground tracking-tighter uppercase italic">Enterprise Profile</h3>
-                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] mt-1 opacity-70">Operational Manifest Control</p>
+                    <h3 className="font-display font-black text-3xl text-foreground tracking-tighter uppercase italic">Restaurant Profile</h3>
+                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] mt-1 opacity-70">Update your restaurant details</p>
                  </div>
               </div>
 
@@ -503,7 +514,7 @@ const RestaurantDashboard = () => {
                           ) : (
                              <div className="flex flex-col items-center gap-3 text-muted-foreground opacity-40">
                                 <ImageIcon className="h-10 w-10" />
-                                <span className="text-[10px] font-black uppercase tracking-widest italic">Business Visual Deployment</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest italic">Restaurant Photo</span>
                              </div>
                           )}
                           {isUploading && (
@@ -527,12 +538,12 @@ const RestaurantDashboard = () => {
                           </label>
                        </div>
                     </div>
-                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.3em] opacity-60">Storefront Identity Visual</p>
+                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.3em] opacity-60">Restaurant Image</p>
                  </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10 relative z-10">
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Establishment Identity</label>
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Restaurant Name</label>
                     <div className="relative group">
                        <Store className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
                        <input type="text" value={restaurantProfile.restaurantName} 
@@ -542,7 +553,7 @@ const RestaurantDashboard = () => {
                   </div>
 
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Communication Frequency</label>
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Phone Number</label>
                     <div className="relative group">
                        <Phone className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
                        <input type="tel" value={restaurantProfile.phone} 
@@ -552,7 +563,7 @@ const RestaurantDashboard = () => {
                   </div>
 
                   <div className="md:col-span-2 space-y-3">
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Logistic Coordinates (Address)</label>
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Restaurant Address</label>
                     <div className="relative group">
                        <MapPin className="absolute left-5 top-6 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
                        <textarea value={restaurantProfile.address} 
@@ -562,7 +573,7 @@ const RestaurantDashboard = () => {
                   </div>
 
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Compliance ID (FSSAI)</label>
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">FSSAI License No.</label>
                     <div className="relative group">
                        <Hash className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
                        <input type="text" value={restaurantProfile.fssaiId} 
@@ -572,7 +583,7 @@ const RestaurantDashboard = () => {
                   </div>
 
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Fiscal Registry (GSTIN)</label>
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">GST Number</label>
                     <div className="relative group">
                        <CreditCard className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
                        <input type="text" value={restaurantProfile.gstNo} 
@@ -586,14 +597,14 @@ const RestaurantDashboard = () => {
                    <button type="submit" disabled={profileLoading}
                     className="px-12 h-16 rounded-[2rem] bg-primary text-white font-display font-black text-[10px] uppercase tracking-[0.3em] shadow-xl shadow-primary/30 hover:scale-[1.03] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center gap-4">
                       {profileLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
-                      <span>Sync Enterprise Manifest</span>
+                      <span>Update Profile</span>
                    </button>
                 </div>
               </form>
               ) : (
                 <div className="p-20 glass-card rounded-[4rem] border border-foreground/5 text-center border-dashed">
                     <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-6 opacity-30 animate-pulse" />
-                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.3em] opacity-60">Compiling Operational Records...</p>
+                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.3em] opacity-60">Loading Profile Details...</p>
                 </div>
               )}
            </div>
@@ -640,7 +651,7 @@ const RestaurantDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
                <h3 className="font-display font-black text-3xl text-foreground tracking-tighter uppercase italic flex items-center gap-4">
-                  Catalog Manifest
+                  Menu Items
                   <Sparkles className="h-6 w-6 text-primary" />
                </h3>
                <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] mt-1 opacity-70">Coordinate defined inventory control</p>
@@ -650,7 +661,7 @@ const RestaurantDashboard = () => {
               className="flex items-center gap-4 px-8 h-14 rounded-2xl bg-primary text-white font-display font-black text-[10px] uppercase tracking-[0.3em] hover:scale-105 shadow-xl shadow-primary/20 transition-all"
             >
               {showAddForm ? <X className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-              {showAddForm ? "Abort Deployment" : "Post Inventory"}
+               {showAddForm ? "Cancel" : "Add New Item"}
             </button>
           </div>
 
@@ -662,27 +673,27 @@ const RestaurantDashboard = () => {
               <form onSubmit={handleAddItem} className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
                 <div className="space-y-8">
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Asset Identity</label>
+                     <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Item Name</label>
                     <input type="text" required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})}
                       className="w-full h-14 px-6 rounded-2xl bg-foreground/5 border border-foreground/5 text-foreground font-black italic tracking-tight focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all placeholder:text-muted-foreground/30 shadow-inner"
                       placeholder="e.g. Signature Truffle Pizza" />
                   </div>
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Manifest Description</label>
+                     <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Item Description</label>
                     <textarea required value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})}
                       className="w-full h-40 px-6 py-5 rounded-[2rem] bg-foreground/5 border border-foreground/5 text-foreground font-black italic text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all resize-none placeholder:text-muted-foreground/30 shadow-inner"
                       placeholder="Specify ingredients and sensory details..." />
                   </div>
                   <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-3">
-                      <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Liability (₹)</label>
+                       <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Price (₹)</label>
                       <div className="relative">
                          <input type="number" required value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})}
                           className="w-full h-14 px-6 rounded-2xl bg-foreground/5 border border-foreground/5 text-foreground font-black tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all shadow-inner" />
                       </div>
                     </div>
                     <div className="space-y-3">
-                      <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Classification</label>
+                       <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Category</label>
                       <select value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})}
                         className="w-full h-14 px-6 rounded-2xl bg-foreground/5 border border-foreground/5 text-foreground font-black uppercase tracking-widest focus:outline-none cursor-pointer appearance-none shadow-inner">
                         {categories.map(c => <option key={c} value={c} className="bg-background text-foreground font-black">{c}</option>)}
@@ -810,7 +821,7 @@ const RestaurantDashboard = () => {
                   </div>
                   <div className="flex-1" />
                   <button type="submit" className="w-full h-16 rounded-[2rem] bg-gradient-hero text-white font-display font-black text-[10px] uppercase tracking-[0.3em] shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all">
-                    Initialize Deployment
+                    Add Item
                   </button>
                 </div>
               </form>
@@ -841,7 +852,7 @@ const RestaurantDashboard = () => {
                             toast.success(`${item.name} is now ${newStatus === 'available' ? 'Accepting Orders' : 'Hidden from Menu'}`);
                         }} className={`mt-2 flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all ${item.status === 'available' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'}`}>
                            <div className={`h-1.5 w-1.5 rounded-full ${item.status === 'available' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                           {item.status === 'available' ? 'Taking Orders' : 'Offline / Restocking'}
+                           {item.status === 'available' ? 'Available' : 'Unavailable'}
                         </button>
                      </div>
                      <span className="font-display font-black text-2xl text-primary tracking-tighter italic">₹{item.price}</span>
@@ -863,86 +874,132 @@ const RestaurantDashboard = () => {
            <div className="flex items-center justify-between">
               <div>
                  <h3 className="font-display font-black text-3xl text-foreground tracking-tighter uppercase italic flex items-center gap-4">
-                    Stock Administration
+                    Inventory Management
                     <Boxes className="h-6 w-6 text-primary" />
                  </h3>
-                 <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] mt-1 opacity-70">Ingredient Manifest Controls</p>
+                 <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] mt-1 opacity-70">Manage your supplies</p>
               </div>
            </div>
 
            {ingredients.length === 0 ? (
                <div className="py-32 text-center border-2 border-dashed border-foreground/10 rounded-[4rem] glass-card">
                   <Boxes className="h-16 w-16 text-muted-foreground mx-auto mb-6 opacity-20" />
-                  <h4 className="font-display font-black text-foreground italic uppercase tracking-tighter text-xl">Empty Vault</h4>
-                  <p className="text-[10px] text-muted-foreground font-black uppercase mt-2 tracking-widest opacity-60">Add inventory via the menu creation protocol.</p>
+                  <h4 className="font-display font-black text-foreground italic uppercase tracking-tighter text-xl">No Ingredients Added</h4>
+                  <p className="text-[10px] text-muted-foreground font-black uppercase mt-2 tracking-widest opacity-60">Add ingredients while creating menu items.</p>
                </div>
            ) : (
              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mt-12">
                 {ingredients.map(ing => (
-                   <div key={ing.id} className="p-6 rounded-[2.5rem] glass-card border border-foreground/5 shadow-premium animate-in fade-in flex items-center justify-between hover:border-primary/20 transition-all">
-                      <div>
-                         <h4 className="font-display font-black text-xl italic tracking-tighter max-w-[120px] truncate">{ing.name}</h4>
-                         <p className="text-[10px] text-muted-foreground uppercase tracking-widest opacity-60 mt-1">Stock ID: {ing.id.slice(0, 8)}</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                         <input 
-                            type="number"
-                            value={stockUpdates[ing.id] ?? ing.stock}
-                            onChange={(e) => setStockUpdates(prev => ({...prev, [ing.id]: e.target.value}))}
-                            className="w-16 h-12 px-3 rounded-2xl bg-foreground/5 text-center font-black shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all border border-foreground/5"
-                         />
-                         {(stockUpdates[ing.id] !== undefined && stockUpdates[ing.id] !== String(ing.stock)) && (
-                             <button onClick={async () => {
-                                 const parsedStock = parseFloat(stockUpdates[ing.id]);
-                                 await updateDoc(doc(db, "ingredients", ing.id), { stock: parsedStock });
+                   <div key={ing.id} className={`p-8 rounded-[3.5rem] glass-card border transition-all shadow-premium animate-in fade-in flex flex-col gap-10 group overflow-hidden relative ${ing.stock < 100 ? 'border-rose-500/30 bg-rose-500/5 ring-1 ring-rose-500/10' : 'border-foreground/5 hover:border-primary/20'}`}>
+                       {ing.stock < 100 && (
+                          <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none group-hover:scale-110 transition-transform duration-700">
+                             <AlertTriangle className="h-32 w-32 text-rose-500" />
+                          </div>
+                       )}
+                       
+                       <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-6">
+                             {ing.stock < 100 ? (
+                                <div className="h-16 w-16 rounded-[1.5rem] bg-rose-500/10 flex items-center justify-center text-rose-500 animate-pulse border border-rose-500/20 shadow-lg shadow-rose-500/5">
+                                   <AlertTriangle className="h-8 w-8" />
+                                </div>
+                             ) : (
+                                <div className="h-16 w-16 rounded-[1.5rem] bg-primary/10 flex items-center justify-center text-primary border border-primary/20 shadow-lg shadow-primary/5">
+                                   <Boxes className="h-8 w-8" />
+                                </div>
+                             )}
+                             <div>
+                                <h4 className="font-display font-black text-2xl italic tracking-tighter truncate max-w-[180px] uppercase">{ing.name}</h4>
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] opacity-60 mt-1.5 font-black">Ref ID: {ing.id.slice(0, 8)}</p>
+                             </div>
+                          </div>
+                          {ing.stock < 100 && (
+                             <div className="px-4 py-2 rounded-xl bg-rose-500 text-white text-[10px] font-black uppercase tracking-widest animate-bounce shadow-lg shadow-rose-500/30">
+                                Low Stock
+                             </div>
+                          )}
+                       </div>
 
-                                 // Auto-restore items relying on this ingredient if stock is > 0
-                                 if (parsedStock > 0) {
-                                     const qMap = query(collection(db, "item_ingredients"), where("ingredientId", "==", ing.id));
-                                     const mapSnap = await getDocs(qMap);
-                                     const itemsToRestore = Array.from(new Set(mapSnap.docs.map(doc => doc.data().itemId)));
-                                     
-                                     let restoredCount = 0;
-                                     for (const tId of itemsToRestore) {
-                                         if (!tId) continue;
-                                         const tRef = doc(db, "items", tId);
-                                         const tSnap = await getDoc(tRef);
-                                         // verify item is currently unavailable
-                                         if (tSnap.exists() && tSnap.data().status === "unavailable") {
-                                             let canRestore = true;
-                                             const reqs = await getDocs(query(collection(db, "item_ingredients"), where("itemId", "==", tId)));
-                                             for (const req of reqs.docs) {
-                                                 const reqData = req.data();
-                                                 const rIng = await getDoc(doc(db, "ingredients", reqData.ingredientId));
-                                                 const checkingStock = rIng.id === ing.id ? parsedStock : (rIng.data()?.stock || 0);
-                                                 if (checkingStock < reqData.quantity) {
-                                                     canRestore = false;
-                                                     break;
-                                                 }
-                                             }
-                                             
-                                             if (canRestore) {
-                                                 await updateDoc(tRef, { status: "available" });
-                                                 restoredCount++;
-                                             }
-                                         }
-                                     }
-                                     if (restoredCount > 0) {
-                                        toast.success(`Automatically returned ${restoredCount} menu item(s) to accepting orders`);
-                                     }
-                                 }
+                       <div className="flex items-end justify-between pt-8 border-t border-foreground/5 gap-6">
+                          <div className="flex-1">
+                             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] mb-2 opacity-50">Current Stock</p>
+                             <div className="flex items-baseline gap-2">
+                                <p className={`text-5xl font-display font-black italic tracking-tighter ${ing.stock < 100 ? 'text-rose-500' : 'text-foreground'}`}>{ing.stock}</p>
+                                <span className="text-[10px] font-black text-muted-foreground uppercase opacity-40">units</span>
+                             </div>
+                          </div>
+                          
+                          <div className="flex flex-col items-end gap-3">
+                             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] opacity-50 mr-1">Update Stock</p>
+                             <div className="flex items-center gap-3">
+                                <input 
+                                   type="number"
+                                   placeholder="Qty"
+                                   value={stockUpdates[ing.id] ?? ing.stock}
+                                   onChange={(e) => setStockUpdates(prev => ({...prev, [ing.id]: e.target.value}))}
+                                   className={`w-28 h-16 px-5 rounded-2xl bg-foreground/5 text-center font-black shadow-inner focus:outline-none focus:ring-2 transition-all border text-lg ${ing.stock < 100 ? 'focus:ring-rose-500/40 border-rose-500/20' : 'focus:ring-primary/40 border-foreground/5'}`}
+                                />
+                                {(stockUpdates[ing.id] !== undefined && stockUpdates[ing.id] !== String(ing.stock)) && (
+                                    <button onClick={async () => {
+                                        const parsedStock = parseFloat(stockUpdates[ing.id]);
+                                        await updateDoc(doc(db, "ingredients", ing.id), { stock: parsedStock });
 
-                                 const newUpdates = {...stockUpdates};
-                                 delete newUpdates[ing.id];
-                                 setStockUpdates(newUpdates);
-                                 toast.success(`Inventory updated for ${ing.name}`);
-                             }} className="h-12 w-12 bg-primary text-white rounded-2xl flex items-center justify-center hover:scale-105 shadow-xl shadow-primary/20 transition-all animate-in zoom-in">
-                                 <Save className="h-5 w-5" />
-                             </button>
-                         )}
-                      </div>
-                   </div>
-                ))}
+                                        if (parsedStock > 0) {
+                                            const qMap = query(collection(db, "item_ingredients"), where("ingredientId", "==", ing.id));
+                                            const mapSnap = await getDocs(qMap);
+                                            const itemsToRestore = Array.from(new Set(mapSnap.docs.map(doc => doc.data().itemId)));
+                                            
+                                            let restoredCount = 0;
+                                            for (const tId of itemsToRestore) {
+                                                if (!tId) continue;
+                                                const tRef = doc(db, "items", tId);
+                                                const tSnap = await getDoc(tRef);
+                                                if (tSnap.exists() && tSnap.data().status === "unavailable") {
+                                                    let canRestore = true;
+                                                    const reqs = await getDocs(query(collection(db, "item_ingredients"), where("itemId", "==", tId)));
+                                                    for (const req of reqs.docs) {
+                                                        const reqData = req.data();
+                                                        const rIng = await getDoc(doc(db, "ingredients", reqData.ingredientId));
+                                                        const checkingStock = rIng.id === ing.id ? parsedStock : (rIng.data()?.stock || 0);
+                                                        if (checkingStock < reqData.quantity) {
+                                                            canRestore = false;
+                                                            break;
+                                                        }
+                                                    }
+                                                    if (canRestore) {
+                                                        await updateDoc(tRef, { status: "available" });
+                                                        restoredCount++;
+                                                    }
+                                                }
+                                            }
+                                            if (restoredCount > 0) {
+                                               toast.success(`Automatically returned ${restoredCount} menu items to service.`);
+                                            }
+                                        }
+
+                                        const newUpdates = {...stockUpdates};
+                                        delete newUpdates[ing.id];
+                                        setStockUpdates(newUpdates);
+                                        toast.success(`Inventory updated for ${ing.name}`);
+                                    }} className="h-16 w-16 bg-primary text-white rounded-2xl flex items-center justify-center hover:scale-105 active:scale-95 shadow-xl shadow-primary/20 transition-all border border-primary/20">
+                                       <Save className="h-6 w-6" />
+                                    </button>
+                                )}
+                             </div>
+                          </div>
+                       </div>
+                       
+                       {ing.stock < 100 && (stockUpdates[ing.id] === undefined || stockUpdates[ing.id] === String(ing.stock)) && (
+                          <button 
+                            onClick={() => setStockUpdates(prev => ({...prev, [ing.id]: "500"}))}
+                            className="w-full h-16 rounded-[2rem] bg-rose-500 text-white font-display font-black text-[10px] uppercase tracking-[0.3em] shadow-xl shadow-rose-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-4 group/btn"
+                          >
+                             <Plus className="h-5 w-5 group-hover/btn:rotate-90 transition-transform" />
+                             Quick Restock (+500 Units)
+                          </button>
+                       )}
+                    </div>
+                 ))}
              </div>
            )}
         </div>
@@ -954,27 +1011,27 @@ const RestaurantDashboard = () => {
               <div className="p-10 rounded-[3rem] glass-card border border-foreground/5 shadow-premium relative overflow-hidden group">
                  <div className="absolute -top-10 -right-10 h-48 w-48 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-all duration-700" />
                  <TrendingUp className="h-10 w-10 text-primary mb-8" />
-                 <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] mb-2 opacity-60">Cumulative Revenue</h4>
+                 <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] mb-2 opacity-60">Total Revenue</h4>
                  <p className="text-5xl font-display font-black text-foreground tracking-tighter italic leading-none">₹{stats.totalRevenue}</p>
               </div>
               <div className="p-10 rounded-[3rem] glass-card border border-foreground/5 shadow-premium relative overflow-hidden group">
                  <div className="absolute -top-10 -right-10 h-48 w-48 bg-indigo-500/5 rounded-full blur-3xl group-hover:bg-indigo-500/10 transition-all duration-700" />
                  <ClipboardList className="h-10 w-10 text-indigo-500 mb-8" />
-                 <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] mb-2 opacity-60">Transaction Volume</h4>
+                 <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] mb-2 opacity-60">Total Orders</h4>
                  <p className="text-5xl font-display font-black text-foreground tracking-tighter italic leading-none">{stats.totalOrders}</p>
               </div>
               <div className="p-10 rounded-[3rem] glass-card border border-foreground/5 shadow-premium relative overflow-hidden group">
                  <div className="absolute -top-10 -right-10 h-48 w-48 bg-emerald-500/5 rounded-full blur-3xl group-hover:bg-emerald-500/10 transition-all duration-700" />
                  <Star className="h-10 w-10 text-emerald-500 mb-8" />
-                 <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] mb-2 opacity-60">Efficiency Metric</h4>
+                 <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] mb-2 opacity-60">Performance</h4>
                  <p className="text-5xl font-display font-black text-foreground tracking-tighter italic leading-none">{stats.analytics_data}</p>
               </div>
            </div>
            
            <div className="p-20 rounded-[4rem] glass-card border border-foreground/5 shadow-premium text-center border-dashed">
               <Sparkles className="h-16 w-16 text-muted-foreground mx-auto mb-8 opacity-20" />
-              <h3 className="font-display font-black text-2xl text-foreground uppercase italic tracking-tighter">Interactive Visualization Pending</h3>
-              <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] mt-4 max-w-sm mx-auto opacity-60">Complex graphical mapping protocols will initialize as transaction density increases.</p>
+              <h3 className="font-display font-black text-2xl text-foreground uppercase italic tracking-tighter">Detailed Charts Coming Soon</h3>
+              <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] mt-4 max-w-sm mx-auto opacity-60">Analytics charts will appear once you have more orders.</p>
            </div>
         </div>
       )}

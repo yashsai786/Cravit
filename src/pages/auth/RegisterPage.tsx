@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Eye, EyeOff, Mail, Lock, User, UserPlus, Store, Bike, Smartphone, Camera, Loader2, CheckCircle2 } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, UserPlus, Store, Bike, Smartphone, Camera, Loader2, CheckCircle2, Utensils } from "lucide-react";
 import { uploadToImageKit } from "@/lib/imagekit";
 
 const RegisterPage = () => {
@@ -23,6 +23,7 @@ const RegisterPage = () => {
       if (userProfile.role === "customer") navigate("/");
       else if (userProfile.role === "restaurant_owner") navigate("/register/restaurant-details");
       else if (userProfile.role === "delivery_partner") navigate("/register/delivery-details");
+      else if (userProfile.role === "dineout_owner") navigate("/register/dineout-details");
     }
   }, [userProfile, navigate]);
 
@@ -65,17 +66,17 @@ const RegisterPage = () => {
     if (!file) return;
 
     setIsUploading(true);
-    const toastId = toast.loading("Uploading profile signature...");
+    const toastId = toast.loading("Uploading profile picture...");
     try {
       const url = await uploadToImageKit(file, "/profiles");
       if (url) {
         setPhotoURL(url);
-        toast.success("Profile visualized in cloud registry", { id: toastId });
+        toast.success("Profile picture uploaded", { id: toastId });
       } else {
         toast.error("Upload failed", { id: toastId });
       }
     } catch (err) {
-      toast.error("Process interrupt: File upload failed", { id: toastId });
+      toast.error("File upload failed", { id: toastId });
     } finally {
       setIsUploading(false);
     }
@@ -104,12 +105,13 @@ const RegisterPage = () => {
             {/* Role Selection */}
             <div className="space-y-3">
               <label className="text-sm font-medium text-slate-300 ml-1">Join as a</label>
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { id: "customer", label: "Customer", icon: <User className="h-4 w-4" /> },
-                  { id: "restaurant_owner", label: "Restaurant", icon: <Store className="h-4 w-4" /> },
-                  { id: "delivery_partner", label: "Delivery", icon: <Bike className="h-4 w-4" /> },
-                ].map((r) => (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {[
+                    { id: "customer", label: "Customer", icon: <User className="h-4 w-4" /> },
+                    { id: "restaurant_owner", label: "Restaurant", icon: <Store className="h-4 w-4" /> },
+                    { id: "delivery_partner", label: "Delivery", icon: <Bike className="h-4 w-4" /> },
+                    { id: "dineout_owner", label: "Dineout", icon: <Utensils className="h-4 w-4" /> },
+                  ].map((r) => (
                   <button
                     key={r.id}
                     type="button"
@@ -157,7 +159,7 @@ const RegisterPage = () => {
                    <Camera className="h-4 w-4" />
                 </label>
               </div>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic tracking-tighter">Identity Core Visual</p>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic tracking-tighter">Profile Picture</p>
             </div>
 
             <div className="space-y-1.5">

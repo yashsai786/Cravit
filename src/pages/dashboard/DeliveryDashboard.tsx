@@ -8,9 +8,9 @@ import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, 
 import { toast } from "sonner";
 
 const navItems = [
-  { label: "Operations", path: "/dashboard/delivery", icon: <Package className="h-4 w-4" /> },
-  { label: "Logistics Logs", path: "/dashboard/delivery/history", icon: <Clock className="h-4 w-4" /> },
-  { label: "Fiscal Stats", path: "/dashboard/delivery/earnings", icon: <TrendingUp className="h-4 w-4" /> },
+  { label: "Active Orders", path: "/dashboard/delivery", icon: <Package className="h-4 w-4" /> },
+  { label: "History", path: "/dashboard/delivery/history", icon: <Clock className="h-4 w-4" /> },
+  { label: "Earnings", path: "/dashboard/delivery/earnings", icon: <TrendingUp className="h-4 w-4" /> },
 ];
 
 const DeliveryDashboard = () => {
@@ -37,16 +37,29 @@ const DeliveryDashboard = () => {
     const qAvailable = query(collection(db, "orders"), where("pincode", "==", userProfile.pincode));
     const unsubAvailable = onSnapshot(qAvailable, (snapshot) => {
       const allSectorOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const thirtyMinsAgo = Date.now() - 30 * 60 * 1000;
+
       const unassigned = allSectorOrders.filter((o: any) => {
+        const orderTime = o.createdAt?.toMillis ? o.createdAt.toMillis() : (o.createdAt || 0);
+        const isRecent = orderTime > thirtyMinsAgo;
+        
         // Broaden acceptance to include both modern and legacy status fields
         const isKitchenActive = ["accepted", "preparing", "handed_over", "packed", "ready"].includes(o.kitchenStatus || o.orderStatus);
         const isLogisticsPending = o.deliveryStatus === "pending" || !o.deliveryStatus;
-        return isKitchenActive && isLogisticsPending && !o.deliveryPartnerId && o.orderStatus !== "cancelled";
+        return isKitchenActive && isLogisticsPending && !o.deliveryPartnerId && o.orderStatus !== "cancelled" && isRecent;
       });
+
+      // Sort latest first
+      unassigned.sort((a: any, b: any) => {
+        const t1 = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt || 0);
+        const t2 = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt || 0);
+        return t2 - t1;
+      });
+
       setAvailableOrders(unassigned);
     }, (error) => {
       console.error("LOGISTICS_FEED_SYNC_ERROR", error);
-      toast.error("Dispatch stream unstable.");
+      toast.error("Unable to sync orders.");
     });
 
     // Listener 2: My Active Shipments
@@ -170,13 +183,13 @@ const DeliveryDashboard = () => {
 
   const handlePincodeSetup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pincodeInput.length !== 6) return toast.error("Coordinate requires 6-digit Pincode.");
+    if (pincodeInput.length !== 6) return toast.error("Please enter a valid 6-digit Pincode.");
     setSettingUp(true);
     try {
       await updateProfile({ pincode: pincodeInput });
-      toast.success("Logistics Sector Locked! 🛰️");
+      toast.success("Delivery Area Updated! 📍");
     } catch (e) {
-      toast.error("Auth server denial.");
+      toast.error("Failed to update area.");
     } finally {
       setSettingUp(false);
     }
@@ -196,11 +209,12 @@ const DeliveryDashboard = () => {
         deliveryPartnerId: userProfile.uid,
         deliveryPartnerName: userProfile.displayName,
         deliveryStatus: "assigned",
+        orderStatus: "assigned",
         assignedAt: serverTimestamp()
       });
-      toast.success("Order Signal Locked! 🏎️");
+      toast.success("Order Accepted! 🏎️");
     } catch (e) {
-      toast.error("Protocol acquisition failure.");
+      toast.error("Failed to accept order.");
     }
   };
 
@@ -232,16 +246,16 @@ const DeliveryDashboard = () => {
   const totalEarnings = history.length * 45;
 
   if (loading) return (
-    <DashboardLayout title="Logistics" items={navItems}>
+    <DashboardLayout title="Delivery" items={navItems}>
        <div className="flex flex-col items-center justify-center py-48">
           <Loader2 className="h-12 w-12 text-primary animate-spin mb-6" />
-          <p className="text-muted-foreground font-black uppercase tracking-[0.3em] text-[10px] opacity-60">Syncing Global Dispatch Node...</p>
+          <p className="text-muted-foreground font-black uppercase tracking-[0.3em] text-[10px] opacity-60">Syncing Dashboard Data...</p>
        </div>
     </DashboardLayout>
   );
 
   if (!userProfile?.pincode) return (
-    <DashboardLayout title="Operative Onboarding" items={navItems}>
+    <DashboardLayout title="Partner Onboarding" items={navItems}>
        <div className="max-w-xl mx-auto py-12 animate-in zoom-in duration-700">
           <div className="p-12 rounded-[3.5rem] glass-card border border-foreground/5 shadow-premium relative overflow-hidden">
              <div className="absolute top-0 right-0 p-12 opacity-[0.02] pointer-events-none">
@@ -252,16 +266,16 @@ const DeliveryDashboard = () => {
                    <Navigation className="h-8 w-8" />
                 </div>
                 <div>
-                   <h3 className="font-display font-black text-3xl text-foreground tracking-tighter uppercase italic">Vector Registration</h3>
-                   <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] mt-1 opacity-70">Operational Zone Definition</p>
+                   <h3 className="font-display font-black text-3xl text-foreground tracking-tighter uppercase italic">Area Registration</h3>
+                   <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] mt-1 opacity-70">Define Your Delivery Area</p>
                 </div>
              </div>
              <p className="text-sm text-muted-foreground mb-10 leading-relaxed font-black uppercase tracking-widest opacity-60">
-                To initialize the order dispatch stream, please define your operational coordinate (Pincode). You will receive broadcasts for all unassigned shipments within this sector.
+                To start receiving orders, please enter your delivery area Pincode. You will see all available orders in this area.
              </p>
              <form onSubmit={handlePincodeSetup} className="space-y-8">
                 <div className="space-y-3">
-                   <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Logistics Pincode</label>
+                   <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] ml-1 opacity-60">Your Pincode</label>
                    <input type="text" maxLength={6} required value={pincodeInput} onChange={(e) => setPincodeInput(e.target.value.replace(/\D/g, ''))}
                       placeholder="e.g. 400001"
                       className="w-full h-16 px-8 rounded-2xl bg-foreground/5 border border-foreground/5 text-foreground font-mono font-black text-center text-2xl tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all placeholder:text-muted-foreground/20 shadow-inner" />
@@ -269,7 +283,7 @@ const DeliveryDashboard = () => {
                 <button type="submit" disabled={settingUp}
                    className="w-full h-16 rounded-[2rem] bg-primary text-white font-display font-black text-[10px] uppercase tracking-[0.3em] shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-4">
                    {settingUp ? <Loader2 className="h-5 w-5 animate-spin" /> : <Map className="h-5 w-5" />}
-                   <span>Lock Operational Sector</span>
+                   <span>Confirm Delivery Area</span>
                 </button>
              </form>
           </div>
@@ -278,13 +292,13 @@ const DeliveryDashboard = () => {
   );
 
   return (
-    <DashboardLayout title="Logistics Dispatch" items={navItems}>
+    <DashboardLayout title="Delivery Dashboard" items={navItems}>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
         {[
-          { label: "Live Broadcasts", value: availableOrders.length, color: "text-amber-500", icon: <Bike className="h-6 w-6" /> },
-          { label: "Active Haul", value: myOrders.length, color: "text-blue-500", icon: <Package className="h-6 w-6" /> },
-          { label: "Total Fulfilled", value: history.length, color: "text-emerald-500", icon: <CheckCircle2 className="h-6 w-6" /> },
-          { label: "Fiscal Impact", value: `₹${totalEarnings}`, color: "text-primary", icon: <TrendingUp className="h-6 w-6" /> },
+          { label: "New Orders", value: availableOrders.length, color: "text-amber-500", icon: <Bike className="h-6 w-6" /> },
+          { label: "Ongoing Deliveries", value: myOrders.length, color: "text-blue-500", icon: <Package className="h-6 w-6" /> },
+          { label: "Total Delivered", value: history.length, color: "text-emerald-500", icon: <CheckCircle2 className="h-6 w-6" /> },
+          { label: "Total Earnings", value: `₹${totalEarnings}`, color: "text-primary", icon: <TrendingUp className="h-6 w-6" /> },
         ].map((s) => (
           <div key={s.label} className="p-10 rounded-[3rem] glass-card border border-foreground/5 shadow-premium relative group overflow-hidden">
             <div className="absolute top-0 right-0 p-8 opacity-[0.02] group-hover:scale-110 group-hover:opacity-10 transition-all duration-700">{s.icon}</div>
@@ -301,7 +315,7 @@ const DeliveryDashboard = () => {
         {(["active", "history", "earnings"] as const).map((t) => (
           <button key={t} onClick={() => navigate(t === "active" ? "/dashboard/delivery" : `/dashboard/delivery/${t}`)}
             className={`px-8 h-12 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] transition-all border ${tab === t ? "bg-primary text-white border-primary shadow-xl shadow-primary/20" : "glass border-foreground/5 text-muted-foreground hover:border-foreground/10"}`}>
-            {t === 'active' ? 'Operations HUB' : t === 'history' ? 'Transaction Logs' : 'Fiscal Analytics'}
+            {t === 'active' ? 'Active Orders' : t === 'history' ? 'Past Orders' : 'Earnings'}
           </button>
         ))}
       </div>
@@ -312,15 +326,15 @@ const DeliveryDashboard = () => {
            <div className="space-y-8">
               <div className="flex items-center justify-between mb-6">
                  <h3 className="font-display font-black text-2xl text-foreground uppercase italic tracking-tighter flex items-center gap-4">
-                    Available Signals
+                    New Orders Nearby
                     <div className="h-3 w-3 rounded-full bg-amber-500 animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.5)]" />
                  </h3>
-                 <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-4 py-1.5 glass border border-foreground/10 rounded-xl opacity-70">Sector: {userProfile.pincode}</span>
+                 <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-4 py-1.5 glass border border-foreground/10 rounded-xl opacity-70">Area: {userProfile.pincode}</span>
               </div>
               {availableOrders.length === 0 && (
                 <div className="py-24 text-center glass-card rounded-[3.5rem] border-2 border-dashed border-foreground/10">
                    <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-6 opacity-20" />
-                   <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.3em] opacity-60">Scanning for available shipments...</p>
+                   <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.3em] opacity-60">No new orders in last 30 mins...</p>
                 </div>
               )}
               {availableOrders.map(order => (
@@ -331,7 +345,9 @@ const DeliveryDashboard = () => {
                    <div className="flex items-start justify-between mb-8 relative z-10">
                       <div>
                          <h4 className="font-display font-black text-2xl text-foreground uppercase italic tracking-tighter group-hover:text-primary transition-colors">{order.restaurantName}</h4>
-                         <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.3em] mt-1 opacity-60">#{order.id.slice(-8).toUpperCase()}</p>
+                         <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.3em] mt-1 opacity-60">
+                           {order.userName} · {order.createdAt?.toDate ? new Date(order.createdAt.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                         </p>
                       </div>
                       <div className="text-right">
                          <p className="text-2xl font-display font-black text-foreground italic tracking-tighter">₹{order.totalAmount}</p>
@@ -344,7 +360,7 @@ const DeliveryDashboard = () => {
                    </div>
                    <button onClick={() => handleAcceptOrder(order.id)}
                       className="w-full h-14 rounded-2xl bg-amber-600 text-white font-display font-black text-[10px] uppercase tracking-[0.3em] shadow-xl shadow-amber-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 relative z-10">
-                      <Package className="h-5 w-5" /> Signal Acquisition
+                      <Package className="h-5 w-5" /> Accept Order
                    </button>
                 </div>
               ))}
@@ -354,10 +370,10 @@ const DeliveryDashboard = () => {
            <div className="space-y-8">
               <div className="flex items-center justify-between mb-6">
                  <h3 className="font-display font-black text-2xl text-foreground uppercase italic tracking-tighter flex items-center gap-4">
-                    Active Deployment
+                    Active Orders
                     <Sparkles className="h-6 w-6 text-primary" />
                  </h3>
-                 <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-4 py-1.5 glass border border-foreground/10 rounded-xl opacity-70">{myOrders.length} Allocated</span>
+                 <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-4 py-1.5 glass border border-foreground/10 rounded-xl opacity-70">{myOrders.length} Assigned</span>
               </div>
               {myOrders.length === 0 && (
                 <div className="py-24 text-center glass-card rounded-[3.5rem] border-2 border-dashed border-foreground/10">
@@ -371,7 +387,7 @@ const DeliveryDashboard = () => {
                    {["picked", "on-way"].includes(order.deliveryStatus) && (
                      <div id="logistics-map" className="h-64 w-full rounded-[2.5rem] mb-8 bg-slate-900 overflow-hidden border border-indigo-500/10 shadow-inner relative z-10 transition-all duration-700 animate-in zoom-in">
                         <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black uppercase tracking-widest text-indigo-500/40 pointer-events-none">
-                           Synchronizing HUD Vector...
+                           Loading Delivery Map...
                         </div>
                      </div>
                    )}
@@ -399,7 +415,7 @@ const DeliveryDashboard = () => {
                    <button onClick={() => handleStatusUpdate(order)}
                       className="w-full h-16 rounded-[2rem] bg-gradient-hero text-white font-display font-black text-[10px] uppercase tracking-[0.3em] shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-4 relative z-10">
                       <CheckCircle2 className="h-6 w-6" />
-                      {order.orderStatus === "assigned" ? "Kernel Acquisition (PICKED)" : order.orderStatus === "picked" ? "Transit Initiation (ON WAY)" : "Finalize Protocol (DELIVERED)"}
+                      {order.orderStatus === "assigned" ? "Picked Up" : order.orderStatus === "picked" ? "Start Delivery" : "Mark Delivered"}
                    </button>
                 </div>
               ))}
@@ -427,7 +443,7 @@ const DeliveryDashboard = () => {
            {history.length === 0 && (
              <div className="py-32 text-center glass-card rounded-[4rem] border-2 border-dashed border-foreground/10 shadow-premium">
                 <Clock className="h-16 w-16 text-muted-foreground mx-auto mb-8 opacity-20" />
-                <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.3em] opacity-60">Awaiting historical fulfillment data matrices.</p>
+                <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.3em] opacity-60">No past orders found.</p>
              </div>
            )}
         </div>

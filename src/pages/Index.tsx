@@ -93,10 +93,10 @@ const Index = () => {
 
         <div className="flex items-center gap-4 px-10 pt-10 flex-wrap">
           <button
-            onClick={() => toast.info("Filter settings synchronized with your location!")}
+            onClick={() => toast.info("Filters applied!")}
             className="flex items-center gap-3 px-8 h-12 rounded-2xl glass text-[10px] font-black uppercase tracking-widest text-muted-foreground border-foreground/5 hover:border-foreground/20 hover:text-foreground transition-all shadow-premium"
           >
-            <SlidersHorizontal className="h-4 w-4 text-primary" /> Filter Matrix
+            <SlidersHorizontal className="h-4 w-4 text-primary" /> Filters
           </button>
           
           <button
@@ -104,12 +104,12 @@ const Index = () => {
             className={`px-8 h-12 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border shadow-premium ${vegOnly ? "bg-emerald-500 text-white border-emerald-500" : "glass text-muted-foreground border-foreground/5 hover:border-foreground/20"
               }`}
           >
-            Organic Sector (VEG)
+            Pure Veg
           </button>
  
           {userProfile?.pincode && (
             <div className="flex items-center gap-3 px-8 h-12 rounded-2xl bg-primary/10 text-primary border border-primary/20 text-[10px] font-black uppercase tracking-widest shadow-xl shadow-primary/20">
-              <MapPin className="h-4 w-4" /> Operational Sector: {userProfile.pincode}
+              <MapPin className="h-4 w-4" /> Delivered to: {userProfile.pincode}
             </div>
           )}
         </div>
@@ -126,14 +126,14 @@ const Index = () => {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 animate-in fade-in duration-500">
                <Loader2 className="h-10 w-10 text-primary animate-spin mb-4" />
-               <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">Syncing with local restaurants...</p>
+               <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">Loading restaurants...</p>
             </div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-32 rounded-[3rem] bg-foreground/5 border border-foreground/10 border-dashed animate-in zoom-in duration-500">
               <div className="h-20 w-20 bg-foreground/5 rounded-full flex items-center justify-center mx-auto mb-6 shrink-0">
                 <MapPin className="h-10 w-10 text-muted-foreground" />
               </div>
-              <p className="text-xl font-display font-black text-foreground uppercase tracking-widest">Zone Empty</p>
+              <p className="text-xl font-display font-black text-foreground uppercase tracking-widest">No Restaurants Found</p>
               <p className="text-[10px] text-muted-foreground mt-2 max-w-sm mx-auto font-black uppercase tracking-widest">No active restaurants found in {userProfile?.pincode || "this area"}. Try a different pincode in the navbar!</p>
             </div>
           ) : (

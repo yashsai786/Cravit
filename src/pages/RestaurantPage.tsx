@@ -1,10 +1,11 @@
 import { useParams, Link } from "react-router-dom";
-import { Star, Clock, ArrowLeft, Plus, Minus, Loader2, Info, Check } from "lucide-react";
+import { Star, Clock, ArrowLeft, Plus, Minus, Loader2, Info, Check, X } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import Header from "@/components/layout/Header";
 import { useState, useEffect } from "react";
 import { doc, getDoc, collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { toast } from "sonner";
 
 const RestaurantPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -13,7 +14,8 @@ const RestaurantPage = () => {
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [jainPreferences, setJainPreferences] = useState<Record<string, boolean>>({});
+  const [customizationItem, setCustomizationItem] = useState<any | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<"Regular" | "Jain">("Regular");
 
   useEffect(() => {
     if (!id) return;
@@ -87,8 +89,27 @@ const RestaurantPage = () => {
   const categories = [...new Set(menuItems.map((m) => m.category || "Main Course"))];
   const displayCategory = activeCategory || categories[0];
 
-  const getCartQty = (itemId: string) => items.find((i) => (i as any).itemId === itemId)?.quantity || 0;
-  const getCartDocId = (itemId: string) => items.find((i) => (i as any).itemId === itemId)?.id || "";
+  const getCartQty = (itemId: string) => items.filter((i) => (i as any).itemId === itemId).reduce((sum, i) => sum + i.quantity, 0);
+
+  const handleAddClick = (item: any) => {
+    if (item.isJain) {
+      setCustomizationItem(item);
+      setSelectedVariant("Regular");
+    } else {
+      addItem(item, restaurant.id, restaurant.name, "food", "");
+    }
+  };
+
+  const handleDecrementClick = (itemId: string) => {
+    const itemEntries = items.filter((i) => (i as any).itemId === itemId);
+    if (itemEntries.length === 1) {
+      updateQuantity(itemEntries[0].id, itemEntries[0].quantity - 1);
+    } else if (itemEntries.length > 1) {
+      toast("Multiple customisations in cart", {
+         description: "Please visit the cart to remove specific customized items."
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -157,7 +178,7 @@ const RestaurantPage = () => {
             .filter((m) => ((m.category === displayCategory) || (!m.category && displayCategory === "Main Course")) && m.status !== "unavailable")
             .map((item, i) => {
               const qty = getCartQty(item.id);
-              const cartDocId = getCartDocId(item.id);
+              // cartDocId is localized downstream
               return (
                 <div key={item.id} className="flex gap-6 p-6 rounded-[2.5rem] glass-card border border-foreground/5 hover:border-primary/20 transition-all animate-in fade-in slide-in-from-bottom-4 shadow-premium group" style={{ animationDelay: `${i * 100}ms` }}>
                   <div className="flex-1 min-w-0">
@@ -174,13 +195,9 @@ const RestaurantPage = () => {
                     <p className="text-[10px] text-muted-foreground mt-4 leading-relaxed line-clamp-2 max-w-sm font-black uppercase tracking-widest opacity-70">{item.description}</p>
                     
                     {item.isJain && (
-                      <button 
-                        onClick={() => setJainPreferences(prev => ({...prev, [item.id]: !prev[item.id]}))}
-                        className={`mt-6 flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all ${jainPreferences[item.id] ? 'bg-emerald-500/10 border-emerald-500 text-emerald-500 shadow-lg shadow-emerald-500/10' : 'glass border-foreground/5 text-muted-foreground'}`}
-                      >
-                         {jainPreferences[item.id] ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-                         Jain Option Protocol
-                      </button>
+                       <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[9px] font-black text-amber-600 uppercase tracking-widest">
+                          Customisable (Jain Available)
+                       </div>
                     )}
                   </div>
                   <div className="relative shrink-0 w-32 h-32">
@@ -188,18 +205,18 @@ const RestaurantPage = () => {
                     <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-[85%]">
                       {qty === 0 ? (
                         <button
-                          onClick={() => addItem(item, restaurant.id, restaurant.name, jainPreferences[item.id] ? "jain" : "")}
+                          onClick={() => handleAddClick(item)}
                           className="w-full h-10 bg-secondary text-primary font-display font-black text-[10px] uppercase tracking-[0.2em] border border-primary/20 rounded-xl shadow-premium hover:bg-primary hover:text-white transition-all transform active:scale-90"
                         >
                           ADD
                         </button>
                       ) : (
                         <div className="flex items-center justify-between bg-primary h-10 rounded-xl overflow-hidden shadow-xl shadow-primary/20 border border-white/10">
-                          <button onClick={() => updateQuantity(cartDocId, qty - 1)} className="flex-1 flex items-center justify-center text-white hover:bg-black/10 h-full transition-all">
+                          <button onClick={() => handleDecrementClick(item.id)} className="flex-1 flex items-center justify-center text-white hover:bg-black/10 h-full transition-all">
                             <Minus className="h-3 w-3" />
                           </button>
                           <span className="font-black text-white text-xs min-w-[20px] text-center italic">{qty}</span>
-                          <button onClick={() => updateQuantity(cartDocId, qty + 1)} className="flex-1 flex items-center justify-center text-white hover:bg-black/10 h-full transition-all">
+                          <button onClick={() => handleAddClick(item)} className="flex-1 flex items-center justify-center text-white hover:bg-black/10 h-full transition-all">
                             <Plus className="h-3 w-3" />
                           </button>
                         </div>
@@ -210,6 +227,74 @@ const RestaurantPage = () => {
               );
             })}
         </section>
+        {customizationItem && (
+           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in">
+              <div className="bg-card w-full max-w-sm rounded-[2.5rem] shadow-premium overflow-hidden border border-foreground/10 animate-in zoom-in-95">
+                 <div className="p-6 border-b border-foreground/5 relative flex items-start gap-4">
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground font-black uppercase tracking-widest">{customizationItem.name} • ₹{customizationItem.price}</p>
+                      <h3 className="text-xl font-display font-black mt-2 italic leading-none">Customise as per your taste</h3>
+                    </div>
+                    <button onClick={() => setCustomizationItem(null)} className="h-8 w-8 shrink-0 rounded-full glass border border-foreground/10 flex items-center justify-center hover:bg-foreground/5 transition-all">
+                       <X className="h-4 w-4" />
+                    </button>
+                 </div>
+                 
+                 <div className="p-6 space-y-4 max-h-[50vh] overflow-y-auto">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-foreground/50 border-b border-foreground/5 pb-2">Customisation</p>
+                    <div className="space-y-3">
+                       <label className={`flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all ${selectedVariant === "Regular" ? "border-primary bg-primary/5" : "border-foreground/10 hover:border-foreground/20"}`}>
+                          <div className="flex items-center gap-3">
+                             <div className="h-4 w-4 rounded-sm border-[1.5px] border-emerald-500 flex items-center justify-center">
+                               <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                             </div>
+                             <span className="font-bold text-sm">Regular</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                             <span className="text-sm font-bold text-foreground/80">₹{customizationItem.price}</span>
+                             <div className={`h-[18px] w-[18px] rounded-full border-[1.5px] flex items-center justify-center transition-all ${selectedVariant === "Regular" ? "border-primary" : "border-foreground/30"}`}>
+                                {selectedVariant === "Regular" && <div className="h-2.5 w-2.5 rounded-full bg-primary" />}
+                             </div>
+                          </div>
+                          <input type="radio" className="hidden" name="customization" value="Regular" checked={selectedVariant === "Regular"} onChange={() => setSelectedVariant("Regular")} />
+                       </label>
+                       
+                       <label className={`flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all ${selectedVariant === "Jain" ? "border-primary bg-primary/5" : "border-foreground/10 hover:border-foreground/20"}`}>
+                          <div className="flex items-center gap-3">
+                             <div className="h-4 w-4 rounded-sm border-[1.5px] border-emerald-500 flex items-center justify-center">
+                               <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                             </div>
+                             <span className="font-bold text-sm">Jain</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                             <span className="text-sm font-bold text-foreground/80">₹{customizationItem.price}</span>
+                             <div className={`h-[18px] w-[18px] rounded-full border-[1.5px] flex items-center justify-center transition-all ${selectedVariant === "Jain" ? "border-primary" : "border-foreground/30"}`}>
+                                {selectedVariant === "Jain" && <div className="h-2.5 w-2.5 rounded-full bg-primary" />}
+                             </div>
+                          </div>
+                          <input type="radio" className="hidden" name="customization" value="Jain" checked={selectedVariant === "Jain"} onChange={() => setSelectedVariant("Jain")} />
+                       </label>
+                    </div>
+                 </div>
+
+                 <div className="p-4 px-6 border-t border-foreground/5 flex items-center justify-between gap-6 bg-card">
+                    <div>
+                       <p className="text-xl font-black leading-none">₹{customizationItem.price}</p>
+                       <p className="text-[10px] text-primary/80 mt-1 font-bold">View Customized Item</p>
+                    </div>
+                    <button 
+                      onClick={() => {
+                         addItem(customizationItem, restaurant.id, restaurant.name, "food", selectedVariant === "Jain" ? "jain" : "");
+                         setCustomizationItem(null);
+                      }}
+                      className="bg-[#199d63] hover:bg-[#158955] text-white px-8 py-3 rounded-xl font-bold text-sm shadow-sm transition-all active:scale-95"
+                    >
+                      Add Item to cart
+                    </button>
+                 </div>
+              </div>
+           </div>
+        )}
       </main>
     </div>
   );

@@ -121,8 +121,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
          }
       }
 
-      // Check if item already in cart for this user AND this cart type
-      const existing = items.find(i => (i as any).itemId === item.id && i.cartType === cartType);
+      // Check if item already in cart for this user AND this cart type AND remarks
+      const existing = items.find(i => (i as any).itemId === item.id && i.cartType === cartType && (i.remarks || "") === (remarks || ""));
       
       if (existing) {
         await updateDoc(doc(db, "cart", existing.id), {
