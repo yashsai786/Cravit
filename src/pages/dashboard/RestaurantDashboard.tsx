@@ -126,6 +126,7 @@ const RestaurantDashboard = () => {
    const [restaurantProfile, setRestaurantProfile] = useState<any>(null);
    const [profileLoading, setProfileLoading] = useState(false);
    const [isUploading, setIsUploading] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
   
   const [formData, setFormData] = useState({
     name: "",
@@ -359,6 +360,86 @@ const RestaurantDashboard = () => {
       setIngredientSearch("");
     } catch (error) {
       toast.error("Failed to add item");
+    }
+  };
+
+  const fetchIngredientsWithAI = async () => {
+    if (!formData.name) {
+      toast.error("Please enter the item name first so AI can identify ingredients.");
+      return;
+    }
+
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      toast.error("Gemini API Key missing! Add VITE_GEMINI_API_KEY to your .env file.");
+      return;
+    }
+
+    setAiLoading(true);
+    const toastId = toast.loading("AI is analyzing the recipe...");
+
+    try {
+      const prompt = `List the basic raw ingredients and their standard quantities (only number in grams or ml) required to cook one serving of "${formData.name}". Description: "${formData.description}". 
+      Return the response as a JSON array of objects with "name" and "quantity" (as string) keys. 
+      Example format: [{"name": "Paneer", "quantity": "200"}, {"name": "Onion", "quantity": "50"}]. 
+      Return ONLY the JSON array, no other text.`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "X-goog-api-key": apiKey
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || `API Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (!text) throw new Error("AI response was empty or blocked by safety filters.");
+      
+      const cleanText = text.replace(/```json|```/g, "").trim();
+      const aiIngredients = JSON.parse(cleanText);
+
+      const mappedIngredients: any[] = [];
+      
+      for (const aiIng of aiIngredients) {
+         const existing = ingredients.find(i => i.name.toLowerCase() === aiIng.name.toLowerCase());
+         
+         if (existing) {
+            mappedIngredients.push({
+               ingredientId: existing.id,
+               name: existing.name,
+               quantity: aiIng.quantity.toString()
+            });
+         } else {
+            const newIngRef = await addDoc(collection(db, "ingredients"), {
+               name: aiIng.name,
+               stock: 0,
+               restaurantId: userProfile!.uid
+            });
+            mappedIngredients.push({
+               ingredientId: newIngRef.id,
+               name: aiIng.name,
+               quantity: aiIng.quantity.toString()
+            });
+         }
+      }
+
+      setFormIngredients([...formIngredients, ...mappedIngredients]);
+      toast.success("AI has successfully mapped the ingredients!", { id: toastId });
+    } catch (error: any) {
+      console.error("AI Error:", error);
+      toast.error(error.message || "AI failed to fetch ingredients.", { id: toastId });
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -745,7 +826,22 @@ const RestaurantDashboard = () => {
                     </div>
                   </div>
                   <div className="space-y-4 pt-6 border-t border-foreground/5">
-                      <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] opacity-60">Required Elements (Inventory Map)</h4>
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] opacity-60">Required Elements (Inventory Map)</h4>
+                        <button 
+                          type="button"
+                          onClick={fetchIngredientsWithAI}
+                          disabled={aiLoading}
+                          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 text-primary border border-primary/20 hover:bg-primary hover:text-white transition-all group shadow-sm disabled:opacity-50"
+                        >
+                          {aiLoading ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-3 w-3 group-hover:animate-pulse" />
+                          )}
+                          <span className="text-[9px] font-black uppercase tracking-widest">Fetch with AI</span>
+                        </button>
+                      </div>
                       <div className="space-y-4 relative z-20">
                           {formIngredients.map((fi, idx) => (
                               <div key={idx} className="flex items-center gap-4">

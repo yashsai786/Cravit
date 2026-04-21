@@ -30,6 +30,7 @@ export interface UserProfile {
   createdAt: number;
   pincode?: string;
   contact?: string;
+  onlineOrderCount?: number;
 }
 
 interface AuthContextType {
@@ -80,6 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               role: "customer",
               status: "active",
               createdAt: Date.now(),
+              onlineOrderCount: 0,
             };
             setDoc(userDocRef, newProfile);
             setUserProfile(newProfile);
@@ -147,6 +149,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         status: status,
         contact: contact,
         createdAt: Date.now(),
+        onlineOrderCount: 0,
       };
       
       await setDoc(doc(db, "users", user.uid), newProfile);

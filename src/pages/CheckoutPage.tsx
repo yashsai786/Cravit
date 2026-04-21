@@ -235,8 +235,13 @@ const CheckoutPage = () => {
                      <p className="text-4xl font-display font-black text-primary tracking-tighter italic">₹{total}</p>
                   </div>
                   <button 
+                    disabled={!selectedAddress}
                     onClick={() => {
                       const sel = addresses.find(a => a.id === selectedAddress);
+                      if (!sel) {
+                        toast.error("Destination coordinates undefined. Please select an address.");
+                        return;
+                      }
                       navigate("/payment", { 
                         state: { 
                           addressId: selectedAddress,
@@ -246,7 +251,7 @@ const CheckoutPage = () => {
                         } 
                       });
                     }}
-                    className="h-16 px-12 rounded-[2rem] bg-gradient-hero text-white font-display font-black text-[10px] uppercase tracking-[0.3em] shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:grayscale"
+                    className="h-16 px-12 rounded-[2rem] bg-gradient-hero text-white font-display font-black text-[10px] uppercase tracking-[0.3em] shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
                   >
                     Authorize Dispatch
                   </button>

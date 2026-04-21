@@ -9,7 +9,7 @@ import { toast } from "sonner";
 
 const RestaurantPage = () => {
   const { id } = useParams<{ id: string }>();
-  const { items, addItem, updateQuantity } = useCart();
+  const { items, addItem, updateQuantity, isSharedCart, tempName } = useCart();
   const [restaurant, setRestaurant] = useState<any>(null);
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -144,6 +144,15 @@ const RestaurantPage = () => {
                </div>
             </div>
           </div>
+          {/* Shared Cart Banner */}
+          {isSharedCart && (
+            <div className="absolute top-6 right-6 px-4 py-2 rounded-2xl glass backdrop-blur-xl border border-indigo-500/30 flex items-center gap-2 animate-in slide-in-from-right duration-500 shadow-2xl">
+              <div className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.1em]">
+                Shared Cart Active {tempName ? `• ${tempName}` : ""}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Category tabs */}

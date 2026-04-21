@@ -11,7 +11,7 @@ const InstamartPage = () => {
   const { userProfile } = useAuth();
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
-  const { addItem, instamartItems, updateQuantity } = useCart();
+  const { addItem, instamartItems, updateQuantity, isSharedCart, tempName } = useCart();
   const [scrolled, setScrolled] = useState(false);
   
   const [store, setStore] = useState<any>(null);
@@ -80,9 +80,20 @@ const InstamartPage = () => {
           <div className="absolute bottom-10 right-10 w-64 h-64 bg-indigo-400 rounded-full blur-3xl" />
         </div>
         <div className="container max-w-6xl h-full flex flex-col justify-center px-6 relative z-10">
-            <h1 className="font-display font-black text-5xl md:text-6xl text-white tracking-tighter italic uppercase animate-in slide-in-from-left duration-700 delay-100">
-               {(store?.name ? store.name.split(' ')[0] : 'Instamart')}<span className="text-indigo-300">.</span>
-            </h1>
+            <div className="flex items-center justify-between">
+              <h1 className="font-display font-black text-5xl md:text-6xl text-white tracking-tighter italic uppercase animate-in slide-in-from-left duration-700 delay-100">
+                {(store?.name ? store.name.split(' ')[0] : 'Instamart')}<span className="text-indigo-300">.</span>
+              </h1>
+              {isSharedCart && (
+                <div className="hidden md:flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 animate-in slide-in-from-right duration-700">
+                  <div className="h-2 w-2 rounded-full bg-indigo-400 animate-pulse" />
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest leading-none">Shared Session</span>
+                    <span className="text-xs font-bold text-white mt-1">{tempName || "Guest User"}</span>
+                  </div>
+                </div>
+              )}
+            </div>
             <p className="text-white/70 text-sm font-medium mt-2 max-w-md animate-in slide-in-from-left duration-700 delay-200">
                {store?.name ? `Serving your sector from ${store.name}.` : 'Premium groceries delivered to your coordinate in 10 minutes.'}
             </p>
